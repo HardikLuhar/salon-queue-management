@@ -193,15 +193,44 @@ export function QueueProvider({ children }) {
   // Whether online customer joining is permitted right now
   const isOnlineJoinAllowed = isQueueOpen && !isOnlineCutoffActive();
 
-  // Service lookup helpers
-  const getCustomerServices = (serviceIds = []) => {
-    return serviceIds.map(id => services.find(s => s.id === id)).filter(Boolean);
+  // Service lookup helpers - resilient to service IDs, arrays of objects, or direct duration
+  const getCustomerServices = (serviceIdsOrItems = []) => {
+    if (!Array.isArray(serviceIdsOrItems)) return [];
+    return serviceIdsOrItems
+      .map(item => {
+        if (!item) return null;
+        if (typeof item === 'object') {
+          if (item.durationMin !== undefined || item.priceInr !== undefined) return item;
+          if (item.id) return services.find(s => s.id === item.id) || null;
+        }
+        return services.find(s => s.id === item) || null;
+      })
+      .filter(Boolean);
   };
 
-  const calculateServicesTotal = (serviceIds = []) => {
-    const selected = getCustomerServices(serviceIds);
-    const duration = selected.reduce((sum, s) => sum + s.durationMin, 0);
-    const price = selected.reduce((sum, s) => sum + s.priceInr, 0);
+  const calculateServicesTotal = (serviceIdsOrItems = []) => {
+    // If passed a customer object directly
+    if (serviceIdsOrItems && typeof serviceIdsOrItems === 'object' && !Array.isArray(serviceIdsOrItems)) {
+      const cust = serviceIdsOrItems;
+      if (typeof cust.durationMin === 'number' || typeof cust.duration === 'number') {
+        return {
+          duration: cust.durationMin || cust.duration || 0,
+          price: cust.priceInr || cust.price || 0
+        };
+      }
+      serviceIdsOrItems = cust.serviceIds || cust.services || (cust.serviceId ? [cust.serviceId] : []);
+    }
+
+    const selected = getCustomerServices(serviceIdsOrItems);
+    let duration = selected.reduce((sum, s) => sum + (s.durationMin || s.duration || 0), 0);
+    let price = selected.reduce((sum, s) => sum + (s.priceInr || s.price || 0), 0);
+
+    // Fallback if IDs were not in catalog: default to standard service duration
+    if (duration === 0 && Array.isArray(serviceIdsOrItems) && serviceIdsOrItems.length > 0) {
+      duration = serviceIdsOrItems.length * 30;
+      price = serviceIdsOrItems.length * 150;
+    }
+
     return { duration, price };
   };
 
@@ -223,68 +252,110 @@ export function QueueProvider({ children }) {
       .filter(q => q.status === 'waiting')
       .sort((a, b) => new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime());
 
-    const index = waitingSorted.findIndex(q => q.id === target.id);
+    const index = waitingSorted.findIndex(
+      q => q.id.toLowerCase() === target.id.toLowerCase() || q.token.toLowerCase() === target.token.toLowerCase()
+    );
     return index !== -1 ? index + 1 : 0;
   };
 
   // Wait time calculation according to docs/03-flows-rules.md Section 5
+  // Formula: (Total Service Minutes of Customers Ahead) / (Active On-Duty Working Barbers)
   const getCustomerWaitTime = (customerId) => {
     const target = getCustomer(customerId);
     if (!target) return 0;
     if (target.status === 'called' || target.status === 'in_chair') return 0;
 
-    const workingBarbers = barbers.filter(b => b.onDuty && b.status !== 'on_break');
+    // Denominator: Active on-duty working barbers who are not on break
+    const workingBarbers = barbers.filter(b => b.onDuty !== false && b.status !== 'on_break');
     if (workingBarbers.length === 0) return 0;
+    const capacity = workingBarbers.length;
 
+    // Chronologically sorted waiting queue
     const waitingSorted = queue
       .filter(q => q.status === 'waiting')
       .sort((a, b) => new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime());
 
-    const targetIdx = waitingSorted.findIndex(q => q.id === target.id);
-    const customersAhead = targetIdx > 0 ? waitingSorted.slice(0, targetIdx) : [];
+    const targetIdx = waitingSorted.findIndex(
+      q => q.id.toLowerCase() === target.id.toLowerCase() || q.token.toLowerCase() === target.token.toLowerCase()
+    );
 
-    const minutesAhead = customersAhead.reduce((sum, cust) => {
-      const { duration } = calculateServicesTotal(cust.serviceIds);
-      return sum + duration;
+    // Waiting customers ahead of target
+    const waitingAhead = targetIdx > 0 ? waitingSorted.slice(0, targetIdx) : [];
+
+    const waitingMinutesAhead = waitingAhead.reduce((sum, cust) => {
+      const { duration } = calculateServicesTotal(cust.serviceIds || cust.services || cust);
+      return sum + Math.max(15, duration);
     }, 0);
 
+    // In-progress services (In Chair): factored into the workload pool
     const inChairCustomers = queue.filter(q => q.status === 'in_chair');
     const inChairRemaining = inChairCustomers.reduce((sum, cust) => {
-      const { duration } = calculateServicesTotal(cust.serviceIds);
+      const { duration } = calculateServicesTotal(cust.serviceIds || cust.services || cust);
+      const standardDuration = Math.max(15, duration);
       if (cust.startedAt) {
         const elapsedMin = Math.floor((Date.now() - new Date(cust.startedAt).getTime()) / 60000);
-        return sum + Math.max(5, duration - elapsedMin);
+        return sum + Math.max(5, standardDuration - elapsedMin);
       }
-      return sum + Math.round(duration / 2);
+      return sum + Math.round(standardDuration / 2);
     }, 0);
 
-    const totalMinutes = minutesAhead + inChairRemaining;
-    return Math.max(5, Math.round(totalMinutes / workingBarbers.length));
+    // Summoned customers (Called, awaiting chair seating)
+    const calledCustomers = queue.filter(q => q.status === 'called');
+    const calledMinutes = calledCustomers.reduce((sum, cust) => {
+      const { duration } = calculateServicesTotal(cust.serviceIds || cust.services || cust);
+      return sum + Math.max(15, duration);
+    }, 0);
+
+    const totalWorkloadMinutes = waitingMinutesAhead + inChairRemaining + calledMinutes;
+
+    if (totalWorkloadMinutes === 0 && waitingAhead.length === 0) {
+      return 0;
+    }
+
+    // Formula: Workload Minutes / Capacity
+    const calculatedWait = Math.round(totalWorkloadMinutes / capacity);
+    return Math.max(5, calculatedWait);
   };
 
   // General wait minutes for overall queue
   const getEstimatedWaitMinutes = (serviceDuration = 0, preferredBarberId = null) => {
-    const workingBarbers = barbers.filter(b => b.onDuty && b.status !== 'on_break');
-    if (workingBarbers.length === 0) return 0;
+    const allWorkingBarbers = barbers.filter(b => b.onDuty !== false && b.status !== 'on_break');
+    if (allWorkingBarbers.length === 0) return 0;
+
+    let eligibleBarbers = allWorkingBarbers;
+    if (preferredBarberId) {
+      const preferred = allWorkingBarbers.find(b => b.id === preferredBarberId);
+      eligibleBarbers = preferred ? [preferred] : allWorkingBarbers;
+    }
+    const capacity = Math.max(1, eligibleBarbers.length);
 
     const waitingCustomers = queue.filter(q => q.status === 'waiting');
-    const totalWaitingMinutes = waitingCustomers.reduce((acc, cust) => {
-      const { duration } = calculateServicesTotal(cust.serviceIds);
-      return acc + duration;
+    const waitingMinutes = waitingCustomers.reduce((acc, cust) => {
+      const { duration } = calculateServicesTotal(cust.serviceIds || cust.services || cust);
+      return acc + Math.max(15, duration);
     }, 0);
 
     const inChairCustomers = queue.filter(q => q.status === 'in_chair');
     const inChairMinutes = inChairCustomers.reduce((acc, cust) => {
-      const { duration } = calculateServicesTotal(cust.serviceIds);
+      const { duration } = calculateServicesTotal(cust.serviceIds || cust.services || cust);
+      const standardDuration = Math.max(15, duration);
       if (cust.startedAt) {
         const elapsedMin = Math.floor((Date.now() - new Date(cust.startedAt).getTime()) / 60000);
-        return acc + Math.max(5, duration - elapsedMin);
+        return sum + Math.max(5, standardDuration - elapsedMin);
       }
-      return acc + Math.round(duration / 2);
+      return acc + Math.round(standardDuration / 2);
     }, 0);
 
-    const totalWorkload = totalWaitingMinutes + inChairMinutes;
-    return Math.max(5, Math.round(totalWorkload / workingBarbers.length));
+    const calledCustomers = queue.filter(q => q.status === 'called');
+    const calledMinutes = calledCustomers.reduce((acc, cust) => {
+      const { duration } = calculateServicesTotal(cust.serviceIds || cust.services || cust);
+      return acc + Math.max(15, duration);
+    }, 0);
+
+    const totalWorkload = waitingMinutes + inChairMinutes + calledMinutes;
+    if (totalWorkload === 0) return 0;
+
+    return Math.max(5, Math.round(totalWorkload / capacity));
   };
 
   // Check duplicate active phone number

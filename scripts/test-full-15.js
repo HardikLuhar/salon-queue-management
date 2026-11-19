@@ -29,36 +29,46 @@ function calculateServicesTotal(serviceIds = [], services = SERVICES) {
 }
 
 function calculateWaitTime(targetCustomerId, queue, barbers) {
-  const target = queue.find(q => q.id === targetCustomerId);
+  const target = queue.find(q => q.id.toLowerCase() === targetCustomerId.toLowerCase() || q.token.toLowerCase() === targetCustomerId.toLowerCase());
   if (!target || target.status === 'called' || target.status === 'in_chair') return 0;
 
-  const workingBarbers = barbers.filter(b => b.onDuty && b.status !== 'on_break');
+  const workingBarbers = barbers.filter(b => b.onDuty !== false && b.status !== 'on_break');
   if (workingBarbers.length === 0) return 0;
+  const capacity = workingBarbers.length;
 
   const waitingSorted = queue
     .filter(q => q.status === 'waiting')
     .sort((a, b) => new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime());
 
-  const targetIdx = waitingSorted.findIndex(q => q.id === target.id);
-  const customersAhead = targetIdx > 0 ? waitingSorted.slice(0, targetIdx) : [];
+  const targetIdx = waitingSorted.findIndex(
+    q => q.id.toLowerCase() === target.id.toLowerCase() || q.token.toLowerCase() === target.token.toLowerCase()
+  );
+  const waitingAhead = targetIdx > 0 ? waitingSorted.slice(0, targetIdx) : [];
 
-  const minutesAhead = customersAhead.reduce((sum, cust) => {
-    const { duration } = calculateServicesTotal(cust.serviceIds);
-    return sum + duration;
+  const minutesAhead = waitingAhead.reduce((sum, cust) => {
+    const { duration } = calculateServicesTotal(cust.serviceIds || cust.services || cust);
+    return sum + Math.max(15, duration);
   }, 0);
 
   const inChairCustomers = queue.filter(q => q.status === 'in_chair');
   const inChairRemaining = inChairCustomers.reduce((sum, cust) => {
-    const { duration } = calculateServicesTotal(cust.serviceIds);
+    const { duration } = calculateServicesTotal(cust.serviceIds || cust.services || cust);
+    const standardDuration = Math.max(15, duration);
     if (cust.startedAt) {
       const elapsedMin = Math.floor((Date.now() - new Date(cust.startedAt).getTime()) / 60000);
-      return sum + Math.max(5, duration - elapsedMin);
+      return sum + Math.max(5, standardDuration - elapsedMin);
     }
-    return sum + Math.round(duration / 2);
+    return sum + Math.round(standardDuration / 2);
   }, 0);
 
-  const totalMinutes = minutesAhead + inChairRemaining;
-  return Math.max(5, Math.round(totalMinutes / workingBarbers.length));
+  const calledCustomers = queue.filter(q => q.status === 'called');
+  const calledMinutes = calledCustomers.reduce((sum, cust) => {
+    const { duration } = calculateServicesTotal(cust.serviceIds || cust.services || cust);
+    return sum + Math.max(15, duration);
+  }, 0);
+
+  const totalMinutes = minutesAhead + inChairRemaining + calledMinutes;
+  return Math.max(5, Math.round(totalMinutes / capacity));
 }
 
 function createSimulationStore() {
@@ -514,6 +524,24 @@ async function run15PointChecklist() {
     const waitTime = calculateWaitTime('s-14', store.getQueue(), allBreakBarbers);
     const pass = waitTime === 0; // Guard avoids NaN or Infinity
     record(19, 'Zero-Barber Guard: All barbers on break avoids divide-by-zero', pass, `Wait time returned: ${waitTime}`);
+  }
+
+  // Bug Fix Verification: Estimated Wait Time with 3 customers ahead
+  {
+    const testQueue = [
+      { id: 'c1', token: 'S-1', status: 'waiting', serviceIds: ['srv-1'], joinedAt: '2026-01-01T10:00:00Z' }, // 30m
+      { id: 'c2', token: 'S-2', status: 'waiting', serviceIds: ['srv-2'], joinedAt: '2026-01-01T10:05:00Z' }, // 15m
+      { id: 'c3', token: 'S-3', status: 'waiting', serviceIds: ['srv-1'], joinedAt: '2026-01-01T10:10:00Z' }, // 30m
+      { id: 'c4', token: 'S-4', status: 'waiting', serviceIds: ['srv-1'], joinedAt: '2026-01-01T10:15:00Z' }  // Target (3 ahead: 75m)
+    ];
+    const testBarbers = [
+      { id: 'b1', name: 'Ravi', status: 'available', onDuty: true },
+      { id: 'b2', name: 'Amit', status: 'available', onDuty: true }
+    ];
+    // 75m / 2 barbers = ~38m
+    const waitTime = calculateWaitTime('c4', testQueue, testBarbers);
+    const pass = waitTime === 38;
+    record(20, 'Wait Time Calculation with 3 customers ahead equals 38 min (not 0 min)', pass, `Calculated: ${waitTime} min`);
   }
 
   console.log('\n================================================================');
