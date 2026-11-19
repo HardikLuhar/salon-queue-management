@@ -121,20 +121,79 @@ export function QueueProvider({ children }) {
     return { duration, price };
   };
 
+  // Find customer by id or token
+  const getCustomer = (idOrToken) => {
+    if (!idOrToken) return null;
+    const lower = idOrToken.toLowerCase();
+    return queue.find(q => q.id.toLowerCase() === lower || q.token.toLowerCase() === lower) || null;
+  };
+
+  // Get dynamic position for a waiting customer
+  const getCustomerPosition = (customerId) => {
+    const target = getCustomer(customerId);
+    if (!target) return 0;
+    if (target.status === 'called' || target.status === 'in_chair') return 0;
+    if (target.status !== 'waiting') return -1; // cancelled, done, no_show
+
+    // Sort waiting customers chronologically by join timestamp
+    const waitingSorted = queue
+      .filter(q => q.status === 'waiting')
+      .sort((a, b) => new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime());
+
+    const index = waitingSorted.findIndex(q => q.id === target.id);
+    return index !== -1 ? index + 1 : 0;
+  };
+
   // Wait time calculation according to docs/03-flows-rules.md Section 5:
   // Estimated waiting time ≈ total minutes of services ahead ÷ number of barbers working
+  const getCustomerWaitTime = (customerId) => {
+    const target = getCustomer(customerId);
+    if (!target) return 0;
+    if (target.status === 'called' || target.status === 'in_chair') return 0;
+
+    const workingBarbers = barbers.filter(b => b.onDuty && b.status !== 'on_break');
+    if (workingBarbers.length === 0) return 0;
+
+    // Waiting customers ahead of target
+    const waitingSorted = queue
+      .filter(q => q.status === 'waiting')
+      .sort((a, b) => new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime());
+
+    const targetIdx = waitingSorted.findIndex(q => q.id === target.id);
+    const customersAhead = targetIdx > 0 ? waitingSorted.slice(0, targetIdx) : [];
+
+    // Sum service minutes of customers ahead
+    const minutesAhead = customersAhead.reduce((sum, cust) => {
+      const { duration } = calculateServicesTotal(cust.serviceIds);
+      return sum + duration;
+    }, 0);
+
+    // Factor in remaining minutes of active in-chair customers
+    const inChairCustomers = queue.filter(q => q.status === 'in_chair');
+    const inChairRemaining = inChairCustomers.reduce((sum, cust) => {
+      const { duration } = calculateServicesTotal(cust.serviceIds);
+      if (cust.startedAt) {
+        const elapsedMin = Math.floor((Date.now() - new Date(cust.startedAt).getTime()) / 60000);
+        return sum + Math.max(5, duration - elapsedMin);
+      }
+      return sum + Math.round(duration / 2);
+    }, 0);
+
+    const totalMinutes = minutesAhead + inChairRemaining;
+    return Math.max(5, Math.round(totalMinutes / workingBarbers.length));
+  };
+
+  // General wait minutes for overall queue
   const getEstimatedWaitMinutes = (serviceDuration = 0, preferredBarberId = null) => {
     const workingBarbers = barbers.filter(b => b.onDuty && b.status !== 'on_break');
     if (workingBarbers.length === 0) return 0;
 
-    // Sum service minutes of all waiting customers ahead
     const waitingCustomers = queue.filter(q => q.status === 'waiting');
     const totalWaitingMinutes = waitingCustomers.reduce((acc, cust) => {
       const { duration } = calculateServicesTotal(cust.serviceIds);
       return acc + duration;
     }, 0);
 
-    // Add estimated remaining minutes of in-chair customers
     const inChairCustomers = queue.filter(q => q.status === 'in_chair');
     const inChairMinutes = inChairCustomers.reduce((acc, cust) => {
       const { duration } = calculateServicesTotal(cust.serviceIds);
@@ -186,6 +245,41 @@ export function QueueProvider({ children }) {
     return { success: true, entry: newCustomer };
   };
 
+  // Cancel Spot (Waiting -> Cancelled)
+  const cancelCustomerSpot = (customerId) => {
+    setQueue(prev =>
+      prev.map(item => {
+        if (item.id === customerId && item.status === 'waiting') {
+          return {
+            ...item,
+            status: 'cancelled',
+            cancelledAt: new Date().toISOString()
+          };
+        }
+        return item;
+      })
+    );
+  };
+
+  // Update customer status (for testing or caller triggers)
+  const setCustomerStatus = (customerId, nextStatus, assignedBarberId = null) => {
+    setQueue(prev =>
+      prev.map(item => {
+        if (item.id === customerId) {
+          return {
+            ...item,
+            status: nextStatus,
+            assignedBarberId: assignedBarberId || item.assignedBarberId,
+            calledAt: nextStatus === 'called' ? new Date().toISOString() : item.calledAt,
+            startedAt: nextStatus === 'in_chair' ? new Date().toISOString() : item.startedAt,
+            doneAt: nextStatus === 'done' ? new Date().toISOString() : item.doneAt
+          };
+        }
+        return item;
+      })
+    );
+  };
+
   return (
     <QueueContext.Provider
       value={{
@@ -205,11 +299,16 @@ export function QueueProvider({ children }) {
         setTokenCounter,
         stats,
         setStats,
+        getCustomer,
         getCustomerServices,
         calculateServicesTotal,
+        getCustomerPosition,
+        getCustomerWaitTime,
         getEstimatedWaitMinutes,
         findActiveSpotByPhone,
-        joinQueue
+        joinQueue,
+        cancelCustomerSpot,
+        setCustomerStatus
       }}
     >
       {children}
