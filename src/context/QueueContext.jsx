@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { translations } from '../locales/translations';
+import { syncService } from '../services/syncService';
 
 const QueueContext = createContext();
 
@@ -95,19 +96,93 @@ export function QueueProvider({ children }) {
     return translations[lang]?.[key] || translations['en']?.[key] || key;
   };
 
-  // Operational & Store State
-  const [isQueueOpen, setIsQueueOpen] = useState(true);
-  const [barbers, setBarbers] = useState(INITIAL_BARBERS);
-  const [services, setServices] = useState(INITIAL_SERVICES);
-  const [queue, setQueue] = useState(INITIAL_QUEUE);
-  const [tokenCounter, setTokenCounter] = useState(16);
+  // Connection & Offline State
+  const [isOnline, setIsOnline] = useState(
+    typeof navigator !== 'undefined' ? navigator.onLine : true
+  );
 
-  // Operational Stats
-  const [stats, setStats] = useState({
-    servedToday: 18,
-    noShowsToday: 3,
-    avgWaitMin: 14
-  });
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // Retrieve initial state from syncService cache or fallback
+  const cached = syncService.getSavedState();
+
+  // Operational & Store State
+  const [isQueueOpen, setIsQueueOpen] = useState(cached?.isQueueOpen ?? true);
+  const [closingTime, setClosingTime] = useState(cached?.closingTime ?? '21:00'); // 9:00 PM
+  const [simulatedTimeOffsetHours, setSimulatedTimeOffsetHours] = useState(0); // For testing cutoff
+  const [barbers, setBarbers] = useState(cached?.barbers ?? INITIAL_BARBERS);
+  const [services, setServices] = useState(cached?.services ?? INITIAL_SERVICES);
+  const [queue, setQueue] = useState(cached?.queue ?? INITIAL_QUEUE);
+  const [tokenCounter, setTokenCounter] = useState(cached?.tokenCounter ?? 16);
+  const [stats, setStats] = useState(
+    cached?.stats ?? {
+      servedToday: 18,
+      noShowsToday: 3,
+      avgWaitMin: 14
+    }
+  );
+
+  const isBroadcastingRef = useRef(false);
+
+  // Broadcast state changes whenever core data updates
+  useEffect(() => {
+    if (isBroadcastingRef.current) return;
+    syncService.broadcast({
+      isQueueOpen,
+      closingTime,
+      barbers,
+      services,
+      queue,
+      tokenCounter,
+      stats
+    });
+  }, [isQueueOpen, closingTime, barbers, services, queue, tokenCounter, stats]);
+
+  // Listen to remote state changes from other viewports
+  useEffect(() => {
+    const unsubscribe = syncService.subscribe((remoteState) => {
+      if (!remoteState) return;
+      isBroadcastingRef.current = true;
+      if (remoteState.isQueueOpen !== undefined) setIsQueueOpen(remoteState.isQueueOpen);
+      if (remoteState.closingTime !== undefined) setClosingTime(remoteState.closingTime);
+      if (remoteState.barbers) setBarbers(remoteState.barbers);
+      if (remoteState.services) setServices(remoteState.services);
+      if (remoteState.queue) setQueue(remoteState.queue);
+      if (remoteState.tokenCounter !== undefined) setTokenCounter(remoteState.tokenCounter);
+      if (remoteState.stats) setStats(remoteState.stats);
+      setTimeout(() => {
+        isBroadcastingRef.current = false;
+      }, 50);
+    });
+    return unsubscribe;
+  }, []);
+
+  // AUTO-CUTOFF RULE (Section 7 of docs/03-flows-rules.md):
+  // Online joining automatically closes 30 minutes before salon closing time.
+  const isOnlineCutoffActive = () => {
+    if (!isQueueOpen) return true; // Manually closed
+
+    const now = new Date(Date.now() + simulatedTimeOffsetHours * 3600 * 1000);
+    const [closeHour, closeMinute] = closingTime.split(':').map(Number);
+    const closeTotalMins = closeHour * 60 + closeMinute;
+    const currentTotalMins = now.getHours() * 60 + now.getMinutes();
+
+    // Cutoff is 30 mins before closing
+    const cutoffMins = closeTotalMins - 30;
+    return currentTotalMins >= cutoffMins && currentTotalMins < closeTotalMins;
+  };
+
+  // Whether online customer joining is permitted right now
+  const isOnlineJoinAllowed = isQueueOpen && !isOnlineCutoffActive();
 
   // Service lookup helpers
   const getCustomerServices = (serviceIds = []) => {
@@ -214,6 +289,10 @@ export function QueueProvider({ children }) {
 
   // Add customer to queue (Online)
   const joinQueue = ({ customerName, phone, serviceIds, preferredBarberId }) => {
+    if (!isOnlineJoinAllowed) {
+      return { success: false, error: 'Online joining is currently closed.' };
+    }
+
     const existing = findActiveSpotByPhone(phone);
     if (existing) {
       return { success: false, existingSpot: existing };
@@ -273,7 +352,6 @@ export function QueueProvider({ children }) {
       return { success: false, error: `${barber.name} is on break and cannot take customers.` };
     }
 
-    // Check if barber already has someone in chair or called
     const existingActive = queue.find(
       q => q.assignedBarberId === barberId && (q.status === 'in_chair' || q.status === 'called')
     );
@@ -281,7 +359,6 @@ export function QueueProvider({ children }) {
       return { success: false, error: `${barber.name} already has an active customer (${existingActive.token}).` };
     }
 
-    // Find earliest eligible waiting customer
     const waitingChronological = queue
       .filter(q => q.status === 'waiting')
       .sort((a, b) => new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime());
@@ -316,12 +393,11 @@ export function QueueProvider({ children }) {
     return { success: true, customer: eligibleCustomer };
   };
 
-  // BARBER ACTIONS: Start Service (Called -> In Chair)
+  // Barber Actions
   const startService = (barberId) => {
     const barber = barbers.find(b => b.id === barberId);
     if (!barber) return { success: false, error: 'Barber not found.' };
 
-    // Test 12 Guard: Single Chair Concurrency Guard
     const alreadyInChair = queue.find(
       q => q.assignedBarberId === barberId && q.status === 'in_chair'
     );
@@ -329,7 +405,6 @@ export function QueueProvider({ children }) {
       return { success: false, error: `Chair is already occupied by ${alreadyInChair.token}. Complete current service first.` };
     }
 
-    // Find the called customer
     const calledCust = queue.find(
       q => q.assignedBarberId === barberId && q.status === 'called'
     );
@@ -358,7 +433,6 @@ export function QueueProvider({ children }) {
     return { success: true, customer: calledCust };
   };
 
-  // BARBER ACTIONS: Complete Service (In Chair -> Done)
   const completeService = (barberId) => {
     const inChairCust = queue.find(
       q => q.assignedBarberId === barberId && q.status === 'in_chair'
@@ -381,7 +455,6 @@ export function QueueProvider({ children }) {
       })
     );
 
-    // Free barber chair
     setBarbers(prev =>
       prev.map(b => {
         if (b.id === barberId) {
@@ -394,7 +467,6 @@ export function QueueProvider({ children }) {
       })
     );
 
-    // Increment today's served stats
     setStats(prev => ({
       ...prev,
       servedToday: prev.servedToday + 1
@@ -416,7 +488,30 @@ export function QueueProvider({ children }) {
     );
   };
 
-  // Mark Customer as No-Show (Only allowed if status === 'called')
+  // ADMIN ACTIONS: Toggle Service Active
+  const toggleServiceActive = (serviceId) => {
+    setServices(prev =>
+      prev.map(s => (s.id === serviceId ? { ...s, active: !s.active } : s))
+    );
+  };
+
+  // ADMIN ACTIONS: Toggle Barber On Duty
+  const toggleBarberOnDuty = (barberId) => {
+    const onDutyCount = barbers.filter(b => b.onDuty).length;
+    const targetBarber = barbers.find(b => b.id === barberId);
+
+    // Guard: Prevent toggling off if it's the last on-duty barber and queue is open
+    if (targetBarber?.onDuty && onDutyCount <= 1 && isQueueOpen) {
+      return { success: false, error: 'At least one barber must remain on duty while the queue is open.' };
+    }
+
+    setBarbers(prev =>
+      prev.map(b => (b.id === barberId ? { ...b, onDuty: !b.onDuty } : b))
+    );
+    return { success: true };
+  };
+
+  // Mark Customer as No-Show
   const markCustomerNoShow = (customerId) => {
     const customer = getCustomer(customerId);
     if (!customer || customer.status !== 'called') {
@@ -455,7 +550,7 @@ export function QueueProvider({ children }) {
     return { success: true };
   };
 
-  // Cancel Spot (Waiting -> Cancelled)
+  // Cancel Spot
   const cancelCustomerSpot = (customerId) => {
     setQueue(prev =>
       prev.map(item => {
@@ -497,8 +592,15 @@ export function QueueProvider({ children }) {
         setLang,
         toggleLang,
         t,
+        isOnline,
         isQueueOpen,
         setIsQueueOpen,
+        closingTime,
+        setClosingTime,
+        isOnlineCutoffActive,
+        isOnlineJoinAllowed,
+        simulatedTimeOffsetHours,
+        setSimulatedTimeOffsetHours,
         barbers,
         setBarbers,
         services,
@@ -522,6 +624,8 @@ export function QueueProvider({ children }) {
         startService,
         completeService,
         toggleBarberBreak,
+        toggleServiceActive,
+        toggleBarberOnDuty,
         markCustomerNoShow,
         cancelCustomerSpot,
         setCustomerStatus
