@@ -814,7 +814,8 @@ export function QueueProvider({ children }) {
         markCustomerNoShow,
         reAddNoShowCustomer,
         cancelCustomerSpot,
-        setCustomerStatus
+        setCustomerStatus,
+        resetSalonState
       }}
     >
       {children}
