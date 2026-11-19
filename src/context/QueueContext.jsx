@@ -128,7 +128,7 @@ export function QueueProvider({ children }) {
     return queue.find(q => q.id.toLowerCase() === lower || q.token.toLowerCase() === lower) || null;
   };
 
-  // Get dynamic position for a waiting customer
+  // Dynamic position for a waiting customer
   const getCustomerPosition = (customerId) => {
     const target = getCustomer(customerId);
     if (!target) return 0;
@@ -264,7 +264,7 @@ export function QueueProvider({ children }) {
     return { success: true, entry: newWalkIn };
   };
 
-  // Call Next Customer for Barber X following docs/03-flows-rules.md Section 4
+  // Call Next Customer for Barber X
   const callNextCustomer = (barberId) => {
     const barber = barbers.find(b => b.id === barberId);
     if (!barber) return { success: false, error: 'Barber not found.' };
@@ -282,7 +282,6 @@ export function QueueProvider({ children }) {
     }
 
     // Find earliest eligible waiting customer
-    // Earliest who requested barberId OR selected null (Any barber)
     const waitingChronological = queue
       .filter(q => q.status === 'waiting')
       .sort((a, b) => new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime());
@@ -295,7 +294,6 @@ export function QueueProvider({ children }) {
       return { success: false, error: `No eligible customers waiting for ${barber.name} or 'Any barber'.` };
     }
 
-    // Transition eligible customer to Called and assign to barber
     const nowIso = new Date().toISOString();
     setQueue(prev =>
       prev.map(item => {
@@ -311,12 +309,111 @@ export function QueueProvider({ children }) {
       })
     );
 
-    // Update barber status to busy
     setBarbers(prev =>
       prev.map(b => (b.id === barberId ? { ...b, status: 'busy' } : b))
     );
 
     return { success: true, customer: eligibleCustomer };
+  };
+
+  // BARBER ACTIONS: Start Service (Called -> In Chair)
+  const startService = (barberId) => {
+    const barber = barbers.find(b => b.id === barberId);
+    if (!barber) return { success: false, error: 'Barber not found.' };
+
+    // Test 12 Guard: Single Chair Concurrency Guard
+    const alreadyInChair = queue.find(
+      q => q.assignedBarberId === barberId && q.status === 'in_chair'
+    );
+    if (alreadyInChair) {
+      return { success: false, error: `Chair is already occupied by ${alreadyInChair.token}. Complete current service first.` };
+    }
+
+    // Find the called customer
+    const calledCust = queue.find(
+      q => q.assignedBarberId === barberId && q.status === 'called'
+    );
+    if (!calledCust) {
+      return { success: false, error: 'No summoned customer waiting to start service.' };
+    }
+
+    const nowIso = new Date().toISOString();
+    setQueue(prev =>
+      prev.map(item => {
+        if (item.id === calledCust.id) {
+          return {
+            ...item,
+            status: 'in_chair',
+            startedAt: nowIso
+          };
+        }
+        return item;
+      })
+    );
+
+    setBarbers(prev =>
+      prev.map(b => (b.id === barberId ? { ...b, status: 'busy' } : b))
+    );
+
+    return { success: true, customer: calledCust };
+  };
+
+  // BARBER ACTIONS: Complete Service (In Chair -> Done)
+  const completeService = (barberId) => {
+    const inChairCust = queue.find(
+      q => q.assignedBarberId === barberId && q.status === 'in_chair'
+    );
+    if (!inChairCust) {
+      return { success: false, error: 'No active in-chair customer found to complete.' };
+    }
+
+    const nowIso = new Date().toISOString();
+    setQueue(prev =>
+      prev.map(item => {
+        if (item.id === inChairCust.id) {
+          return {
+            ...item,
+            status: 'done',
+            doneAt: nowIso
+          };
+        }
+        return item;
+      })
+    );
+
+    // Free barber chair
+    setBarbers(prev =>
+      prev.map(b => {
+        if (b.id === barberId) {
+          return {
+            ...b,
+            status: b.status === 'on_break' ? 'on_break' : 'available'
+          };
+        }
+        return b;
+      })
+    );
+
+    // Increment today's served stats
+    setStats(prev => ({
+      ...prev,
+      servedToday: prev.servedToday + 1
+    }));
+
+    return { success: true, customer: inChairCust };
+  };
+
+  // Toggle Barber Break
+  const toggleBarberBreak = (barberId) => {
+    setBarbers(prev =>
+      prev.map(b => {
+        if (b.id === barberId) {
+          const nextStatus = b.status === 'on_break' ? 'available' : 'on_break';
+          return { ...b, status: nextStatus };
+        }
+        return b;
+      })
+    );
   };
 
   // Mark Customer as No-Show (Only allowed if status === 'called')
@@ -339,7 +436,6 @@ export function QueueProvider({ children }) {
       })
     );
 
-    // Release barber back to available if no other active customer
     if (customer.assignedBarberId) {
       setBarbers(prev =>
         prev.map(b => {
@@ -351,7 +447,6 @@ export function QueueProvider({ children }) {
       );
     }
 
-    // Increment today's no-show count
     setStats(prev => ({
       ...prev,
       noShowsToday: prev.noShowsToday + 1
@@ -424,6 +519,9 @@ export function QueueProvider({ children }) {
         joinQueue,
         addWalkInCustomer,
         callNextCustomer,
+        startService,
+        completeService,
+        toggleBarberBreak,
         markCustomerNoShow,
         cancelCustomerSpot,
         setCustomerStatus
