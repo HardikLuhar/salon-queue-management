@@ -352,6 +352,40 @@ export function QueueProvider({ children }) {
     return { success: true, entry: newWalkIn };
   };
 
+  // Re-add a returning No-Show customer as a fresh Walk-In at the very END of the queue
+  // (Section 6.1 and Section 10 Edge Case 9 of docs/03-flows-rules.md)
+  const reAddNoShowCustomer = (customerId) => {
+    const originalCust = getCustomer(customerId);
+    if (!originalCust) {
+      return { success: false, error: 'Customer not found.' };
+    }
+    if (originalCust.status !== 'no_show') {
+      return { success: false, error: 'Only customers marked as No-show can be re-added as returning walk-ins.' };
+    }
+
+    const currentNum = tokenCounter;
+    const tokenStr = `S-${currentNum}`;
+    const idStr = `s-${currentNum}`;
+    setTokenCounter(prev => prev + 1);
+
+    const freshEntry = {
+      id: idStr,
+      token: tokenStr,
+      customerName: originalCust.customerName,
+      phone: originalCust.phone,
+      serviceIds: [...originalCust.serviceIds],
+      preferredBarberId: originalCust.preferredBarberId,
+      assignedBarberId: null,
+      status: 'waiting',
+      joinedAt: new Date().toISOString(), // Fresh timestamp guaranteed to be at the END of FIFO line
+      isWalkIn: true,
+      reAddedFromToken: originalCust.token
+    };
+
+    setQueue(prev => [...prev, freshEntry]);
+    return { success: true, entry: freshEntry, oldToken: originalCust.token };
+  };
+
   // Call Next Customer for Barber X
   const callNextCustomer = (barberId) => {
     const barber = barbers.find(b => b.id === barberId);
@@ -682,6 +716,7 @@ export function QueueProvider({ children }) {
         isAllBarbersOnBreak,
         ALLOWED_TRANSITIONS,
         markCustomerNoShow,
+        reAddNoShowCustomer,
         cancelCustomerSpot,
         setCustomerStatus
       }}

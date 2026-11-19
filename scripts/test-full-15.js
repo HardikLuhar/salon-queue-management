@@ -344,6 +344,8 @@ async function run15PointChecklist() {
     calledCust.calledAt = new Date(Date.now() - 11 * 60 * 1000).toISOString();
 
     const noShowRes = customStore.markCustomerNoShow('s-14');
+    
+    // Re-add customer Amit Shah
     const reAddRes = customStore.addWalkInCustomer({
       customerName: 'Amit Shah (Returning)',
       phone: '9823456789',
@@ -351,10 +353,23 @@ async function run15PointChecklist() {
       preferredBarberId: null
     });
 
-    const queueNow = customStore.getQueue();
-    const lastItem = queueNow[queueNow.length - 1];
-    const pass = noShowRes.success && calledCust.status === 'no_show' && reAddRes.success && lastItem.token !== 'S-14' && lastItem.status === 'waiting' && lastItem.id === reAddRes.entry.id;
-    record(7, 'No-show customer re-added joins at END with new sequential token', pass, `Old: ${calledCust.status}, New Token: ${lastItem.token}`);
+    const waitingSorted = customStore.getQueue()
+      .filter(q => q.status === 'waiting')
+      .sort((a, b) => new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime());
+
+    const lastItem = waitingSorted[waitingSorted.length - 1];
+    const firstItem = waitingSorted[0];
+
+    // Assert that the re-added customer is at the BOTTOM, not top!
+    const pass = noShowRes.success && 
+                 calledCust.status === 'no_show' && 
+                 reAddRes.success && 
+                 lastItem.id === reAddRes.entry.id && 
+                 lastItem.token !== 'S-14' && 
+                 firstItem.id === 's-15' && // Earlier customer S-15 remains at top!
+                 waitingSorted.indexOf(reAddRes.entry) === waitingSorted.length - 1;
+
+    record(7, 'No-show customer re-added joins at END of line (bottom of queue)', pass, `First: ${firstItem.token}, Bottom: ${lastItem.token}`);
   }
 
   // Test 8: Closed queue disables online join

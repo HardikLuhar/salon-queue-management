@@ -26,6 +26,7 @@ export default function ReceptionScreen() {
     isQueueOpen,
     callNextCustomer,
     markCustomerNoShow,
+    reAddNoShowCustomer,
     cancelCustomerSpot,
     addWalkInCustomer,
     getCustomerServices,
@@ -48,9 +49,12 @@ export default function ReceptionScreen() {
   // Active services list
   const activeServices = services.filter(s => s.active);
 
-  // Active waiting and called customers
-  const waitingCustomers = queue.filter(q => q.status === 'waiting');
+  // Active waiting customers STRICTLY sorted by joinedAt FIFO timestamp
+  const waitingCustomers = queue
+    .filter(q => q.status === 'waiting')
+    .sort((a, b) => new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime());
   const calledCustomers = queue.filter(q => q.status === 'called');
+  const noShowCustomers = queue.filter(q => q.status === 'no_show');
   const activeQueueList = queue.filter(q => q.status === 'waiting' || q.status === 'called');
 
   // Filtered waiting list
@@ -64,6 +68,16 @@ export default function ReceptionScreen() {
   const notify = (msg, isError = false) => {
     setActionNotice({ msg, isError });
     setTimeout(() => setActionNotice(null), 3500);
+  };
+
+  // Handler to re-add a returning no-show customer at the very END of the line
+  const handleReAddNoShow = (customerId) => {
+    const res = reAddNoShowCustomer(customerId);
+    if (res.success) {
+      notify(`Customer ${res.entry.customerName} re-added at the END of the line with fresh token ${res.entry.token}!`);
+    } else {
+      notify(res.error, true);
+    }
   };
 
   // Trigger Call Next
@@ -594,6 +608,49 @@ export default function ReceptionScreen() {
                     </div>
                   );
                 })}
+              </div>
+            </div>
+          )}
+
+          {/* Late Arrivals / No-Shows Section (Eligible to Re-add at END with new token) */}
+          {noShowCustomers.length > 0 && (
+            <div className="mt-6 border-t border-neutral-200 pt-4">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="w-2 h-2 rounded-full bg-neutral-400" />
+                <h3 className="text-xs uppercase tracking-widest text-neutral-600 font-bold">
+                  Recent No-Shows / Late Arrivals ({noShowCustomers.length})
+                </h3>
+              </div>
+
+              <div className="space-y-2">
+                {noShowCustomers.map((cust) => (
+                  <div
+                    key={cust.id}
+                    className="bg-neutral-100 border border-neutral-300 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="font-serif font-bold text-sm text-neutral-500 line-through">
+                        {cust.token}
+                      </span>
+                      <div>
+                        <div className="text-xs font-semibold text-neutral-900">
+                          {cust.customerName}
+                        </div>
+                        <span className="text-[11px] text-neutral-500">
+                          Expired No-show ticket · Prior token void
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => handleReAddNoShow(cust.id)}
+                      className="min-h-[44px] px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-black text-white hover:bg-neutral-800 transition-colors flex items-center justify-center gap-1.5 shrink-0"
+                    >
+                      <UserPlus className="w-3.5 h-3.5" />
+                      <span>{t('actions.reAddWalkIn')}</span>
+                    </button>
+                  </div>
+                ))}
               </div>
             </div>
           )}
