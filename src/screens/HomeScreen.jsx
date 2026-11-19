@@ -4,7 +4,7 @@ import { useQueue } from '../context/QueueContext';
 import { Users, Clock, ArrowRight, ShieldCheck, Sparkles } from 'lucide-react';
 
 export default function HomeScreen() {
-  const { t, queue, isQueueOpen, barbers, getEstimatedWaitMinutes } = useQueue();
+  const { t, queue, isQueueOpen, barbers, getEstimatedWaitMinutes, isAllBarbersOnBreak } = useQueue();
 
   // Active waiting customers
   const waitingCustomers = queue.filter(q => q.status === 'waiting');
@@ -89,9 +89,11 @@ export default function HomeScreen() {
                 <span>Live Salon Flow</span>
               </div>
               <h2 className="text-2xl sm:text-3xl font-serif font-semibold text-neutral-950">
-                {waitingCount > 0 ? (
+                {isAllBarbersOnBreak ? (
+                  <span className="text-neutral-900">{t('queue.allOnBreak')}</span>
+                ) : waitingCount > 0 ? (
                   <>
-                    {waitingCount} {t('queue.peopleWaiting')} <span className="text-neutral-400 font-light">·</span> {t('queue.approxWait')} {estimatedWait} {t('queue.mins')}
+                    {waitingCount} {t('queue.peopleWaiting')} <span className="text-neutral-400 font-light">·</span> {t('queue.approxWait')} ~{estimatedWait} {t('queue.mins')}
                   </>
                 ) : (
                   <span>{t('queue.noWaiting')}</span>

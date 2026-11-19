@@ -77,12 +77,21 @@ export default function ReceptionScreen() {
     }
   };
 
-  // Trigger No-Show
-  const handleNoShow = (customerId) => {
-    const result = markCustomerNoShow(customerId);
+  // Trigger No-Show with 10-Minute Grace Period Guard
+  const handleNoShow = (customerId, force = false) => {
+    const result = markCustomerNoShow(customerId, force);
     if (result.success) {
       notify('Customer marked as No-show. Station cleared.');
     } else {
+      if (result.error && result.error.includes('10-minute grace period')) {
+        if (window.confirm(`${result.error}\n\nDo you want to override and confirm No-Show anyway?`)) {
+          const forceRes = markCustomerNoShow(customerId, true);
+          if (forceRes.success) {
+            notify('Customer marked as No-show (grace period overridden).');
+            return;
+          }
+        }
+      }
       notify(result.error, true);
     }
   };
@@ -518,7 +527,7 @@ export default function ReceptionScreen() {
                         <div>
                           <button
                             onClick={() => cancelCustomerSpot(cust.id)}
-                            className="p-1.5 rounded-lg text-neutral-400 hover:text-red-600 hover:bg-neutral-100 transition-colors"
+                            className="min-w-[48px] min-h-[48px] flex items-center justify-center rounded-xl text-neutral-400 hover:text-red-600 hover:bg-neutral-100 transition-colors"
                             title="Cancel spot"
                           >
                             <X className="w-4 h-4" />
@@ -558,7 +567,7 @@ export default function ReceptionScreen() {
                         </span>
                         <div>
                           <div className="text-xs font-semibold text-neutral-900">
-                            {cust.customerName} $\rightarrow$ Chair #{assigned?.chair} ({assigned?.name})
+                            {cust.customerName} → Chair #{assigned?.chair} ({assigned?.name})
                           </div>
                           <span className="text-[11px] text-neutral-500">
                             Called {elapsedCalled} min ago
@@ -570,9 +579,16 @@ export default function ReceptionScreen() {
                         {/* Only Called customers have the No-Show action button! */}
                         <button
                           onClick={() => handleNoShow(cust.id)}
-                          className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-600 text-white hover:bg-red-700 transition-colors"
+                          className={`min-h-[48px] px-4 py-2 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${
+                            elapsedCalled >= 10
+                              ? 'bg-red-600 text-white hover:bg-red-700 animate-pulse ring-2 ring-red-400'
+                              : 'bg-neutral-800 text-white hover:bg-red-600'
+                          }`}
                         >
-                          {t('actions.noShow')}
+                          <span>{t('actions.noShow')}</span>
+                          {elapsedCalled < 10 && (
+                            <span className="text-[10px] opacity-75 font-mono">({10 - elapsedCalled}m)</span>
+                          )}
                         </button>
                       </div>
                     </div>

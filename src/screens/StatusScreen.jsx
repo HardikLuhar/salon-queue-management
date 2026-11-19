@@ -28,7 +28,8 @@ export default function StatusScreen() {
     getCustomerPosition,
     getCustomerWaitTime,
     cancelCustomerSpot,
-    setCustomerStatus
+    setCustomerStatus,
+    isAllBarbersOnBreak
   } = useQueue();
 
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -45,17 +46,17 @@ export default function StatusScreen() {
           <XCircle className="w-8 h-8" />
         </div>
         <h1 className="font-serif text-3xl font-semibold text-neutral-900 mb-2">
-          Token Not Found
+          {t('status.tokenNotFound')}
         </h1>
         <p className="text-sm text-neutral-600 mb-6">
           Could not find an active queue spot for token #{id}. Please verify your ticket or check in at the reception desk.
         </p>
         <Link
           to="/"
-          className="inline-flex items-center gap-2 px-6 py-3 rounded-full text-xs uppercase tracking-widest font-semibold bg-black text-white hover:bg-neutral-800"
+          className="inline-flex items-center justify-center gap-2 px-6 min-h-[48px] rounded-full text-xs uppercase tracking-widest font-semibold bg-black text-white hover:bg-neutral-800"
         >
           <ArrowLeft className="w-4 h-4" />
-          <span>Return Home</span>
+          <span>{t('actions.returnHome')}</span>
         </Link>
       </div>
     );
@@ -276,12 +277,16 @@ export default function StatusScreen() {
               <div className="flex items-center gap-1.5">
                 <Scissors className="w-4 h-4 text-neutral-400" />
                 <span>
-                  {position > 1 ? `${position - 1} ${t('queue.ahead')}` : 'You are next in line!'}
+                  {position > 1 ? `${position - 1} ${t('queue.ahead')}` : t('status.nextInLine')}
                 </span>
               </div>
               <div className="flex items-center gap-1.5 font-medium text-neutral-900">
                 <Clock className="w-4 h-4 text-neutral-400" />
-                <span>~{estimatedWait} {t('queue.mins')}</span>
+                {isAllBarbersOnBreak ? (
+                  <span className="text-amber-700 font-semibold">{t('queue.allOnBreak')}</span>
+                ) : (
+                  <span>~{estimatedWait} {t('queue.mins')}</span>
+                )}
               </div>
             </div>
           )}
@@ -291,13 +296,13 @@ export default function StatusScreen() {
             <div className="my-6 p-4 rounded-2xl bg-neutral-900 text-white text-center">
               <div className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-amber-400 mb-2">
                 <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-                <span>Currently In Chair</span>
+                <span>{t('status.inChairNow')}</span>
               </div>
               <div className="font-serif text-xl font-semibold">
-                Receiving service with {targetBarber?.name || 'Barber'}
+                {t('status.receivingService')} {targetBarber?.name || 'Barber'}
               </div>
               <p className="text-xs text-neutral-400 mt-1">
-                Estimated service duration: {totalDuration} min
+                {t('status.estDuration')}: {totalDuration} {t('queue.mins')}
               </p>
             </div>
           )}
@@ -330,10 +335,10 @@ export default function StatusScreen() {
             <div className="my-6 p-5 rounded-2xl bg-red-50 border border-red-200 text-red-950 text-center">
               <AlertTriangle className="w-8 h-8 text-red-600 mx-auto mb-2" />
               <div className="font-serif text-lg font-semibold text-red-900">
-                Marked as No-Show
+                {t('status.noShow')}
               </div>
               <p className="text-xs text-red-700 mt-1">
-                Your token was summoned but expired after the grace period. Please visit the reception desk to be added back to the queue.
+                {t('status.noShowDesc')}
               </p>
             </div>
           )}
@@ -382,7 +387,7 @@ export default function StatusScreen() {
           </span>
           <div className="flex flex-wrap items-center justify-center gap-2">
             <button
-              onClick={() => setCustomerStatus(customer.id, 'waiting')}
+              onClick={() => setCustomerStatus(customer.id, 'waiting', null, { force: true })}
               className={`px-3 py-1 rounded-lg text-xs font-mono transition-all ${
                 customer.status === 'waiting' ? 'bg-black text-white font-bold' : 'bg-white border border-neutral-300 text-neutral-700'
               }`}
@@ -392,7 +397,7 @@ export default function StatusScreen() {
             <button
               onClick={() => {
                 setHasAcknowledgedCall(false);
-                setCustomerStatus(customer.id, 'called', 'barber-2'); // Assigned to Amit
+                setCustomerStatus(customer.id, 'called', 'barber-2', { force: true }); // Assigned to Amit
               }}
               className={`px-3 py-1 rounded-lg text-xs font-mono transition-all ${
                 customer.status === 'called' ? 'bg-black text-white font-bold' : 'bg-white border border-neutral-300 text-neutral-700'
@@ -401,7 +406,7 @@ export default function StatusScreen() {
               Simulate "Called" (Amit)
             </button>
             <button
-              onClick={() => setCustomerStatus(customer.id, 'in_chair', 'barber-2')}
+              onClick={() => setCustomerStatus(customer.id, 'in_chair', 'barber-2', { force: true })}
               className={`px-3 py-1 rounded-lg text-xs font-mono transition-all ${
                 customer.status === 'in_chair' ? 'bg-black text-white font-bold' : 'bg-white border border-neutral-300 text-neutral-700'
               }`}
@@ -409,7 +414,7 @@ export default function StatusScreen() {
               Set In Chair
             </button>
             <button
-              onClick={() => setCustomerStatus(customer.id, 'done')}
+              onClick={() => setCustomerStatus(customer.id, 'done', null, { force: true })}
               className={`px-3 py-1 rounded-lg text-xs font-mono transition-all ${
                 customer.status === 'done' ? 'bg-black text-white font-bold' : 'bg-white border border-neutral-300 text-neutral-700'
               }`}
@@ -439,15 +444,15 @@ export default function StatusScreen() {
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setShowCancelModal(false)}
-                className="flex-1 py-3 rounded-full text-xs font-semibold uppercase tracking-wider border border-neutral-300 text-neutral-700 hover:bg-neutral-100 transition-colors"
+                className="flex-1 min-h-[48px] flex items-center justify-center py-3 rounded-full text-xs font-semibold uppercase tracking-wider border border-neutral-300 text-neutral-700 hover:bg-neutral-100 transition-colors"
               >
-                Keep Spot
+                {t('actions.keepSpot')}
               </button>
               <button
                 onClick={handleConfirmCancel}
-                className="flex-1 py-3 rounded-full text-xs font-semibold uppercase tracking-wider bg-red-600 text-white hover:bg-red-700 transition-colors"
+                className="flex-1 min-h-[48px] flex items-center justify-center py-3 rounded-full text-xs font-semibold uppercase tracking-wider bg-red-600 text-white hover:bg-red-700 transition-colors"
               >
-                Yes, Cancel
+                {t('actions.yesCancel')}
               </button>
             </div>
           </div>

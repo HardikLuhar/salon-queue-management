@@ -4,6 +4,15 @@ import { syncService } from '../services/syncService';
 
 const QueueContext = createContext();
 
+export const ALLOWED_TRANSITIONS = {
+  waiting: ['called', 'cancelled'],
+  called: ['in_chair', 'no_show'],
+  in_chair: ['done'],
+  done: [],
+  cancelled: [],
+  no_show: []
+};
+
 export const INITIAL_SERVICES = [
   { id: 'srv-1', nameEn: 'Haircut', nameGu: 'વાળ કપાવવા', durationMin: 30, priceInr: 150, active: true },
   { id: 'srv-2', nameEn: 'Beard trim', nameGu: 'દાઢી ટ્રિમ', durationMin: 15, priceInr: 80, active: true },
@@ -511,11 +520,31 @@ export function QueueProvider({ children }) {
     return { success: true };
   };
 
+  // Zero-barber status: whether all on-duty barbers are currently on break
+  const activeWorkingBarbers = barbers.filter(b => b.onDuty && b.status !== 'on_break');
+  const isAllBarbersOnBreak = activeWorkingBarbers.length === 0 && barbers.some(b => b.onDuty);
+
   // Mark Customer as No-Show
-  const markCustomerNoShow = (customerId) => {
+  // 10-Minute Grace Period Guard (Section 6.1 of docs/03-flows-rules.md)
+  const markCustomerNoShow = (customerId, force = false) => {
     const customer = getCustomer(customerId);
-    if (!customer || customer.status !== 'called') {
+    if (!customer) {
+      return { success: false, error: 'Customer not found.' };
+    }
+    if (customer.status !== 'called') {
       return { success: false, error: 'Only called customers can be marked as No-show.' };
+    }
+
+    const elapsedMinutes = customer.calledAt
+      ? Math.floor((Date.now() - new Date(customer.calledAt).getTime()) / (60 * 1000))
+      : 0;
+
+    if (elapsedMinutes < 10 && !force) {
+      const remaining = Math.max(1, 10 - elapsedMinutes);
+      return {
+        success: false,
+        error: `Customer has a 10-minute grace period. Please wait ${remaining} more minute(s) before marking No-Show.`
+      };
     }
 
     setQueue(prev =>
@@ -550,8 +579,16 @@ export function QueueProvider({ children }) {
     return { success: true };
   };
 
-  // Cancel Spot
+  // Cancel Spot - Can only cancel if status is 'waiting'
   const cancelCustomerSpot = (customerId) => {
+    const customer = getCustomer(customerId);
+    if (!customer) {
+      return { success: false, error: 'Customer not found.' };
+    }
+    if (customer.status !== 'waiting') {
+      return { success: false, error: 'Only waiting customers can cancel their spot.' };
+    }
+
     setQueue(prev =>
       prev.map(item => {
         if (item.id === customerId && item.status === 'waiting') {
@@ -564,10 +601,23 @@ export function QueueProvider({ children }) {
         return item;
       })
     );
+    return { success: true };
   };
 
-  // Direct status update
-  const setCustomerStatus = (customerId, nextStatus, assignedBarberId = null) => {
+  // Direct status update with Strict Lifecycle Guard (Section 3.3 of docs/03-flows-rules.md)
+  const setCustomerStatus = (customerId, nextStatus, assignedBarberId = null, options = {}) => {
+    const cust = getCustomer(customerId);
+    if (!cust) return { success: false, error: 'Customer not found.' };
+
+    const allowed = ALLOWED_TRANSITIONS[cust.status] || [];
+    if (!allowed.includes(nextStatus) && !options.force) {
+      return {
+        success: false,
+        error: `Illegal status transition from '${cust.status}' to '${nextStatus}'. Valid next states: ${allowed.join(', ') || 'none (terminal state)'}.`
+      };
+    }
+
+    const nowIso = new Date().toISOString();
     setQueue(prev =>
       prev.map(item => {
         if (item.id === customerId) {
@@ -575,14 +625,17 @@ export function QueueProvider({ children }) {
             ...item,
             status: nextStatus,
             assignedBarberId: assignedBarberId || item.assignedBarberId,
-            calledAt: nextStatus === 'called' ? new Date().toISOString() : item.calledAt,
-            startedAt: nextStatus === 'in_chair' ? new Date().toISOString() : item.startedAt,
-            doneAt: nextStatus === 'done' ? new Date().toISOString() : item.doneAt
+            calledAt: nextStatus === 'called' ? nowIso : item.calledAt,
+            startedAt: nextStatus === 'in_chair' ? nowIso : item.startedAt,
+            doneAt: nextStatus === 'done' ? nowIso : item.doneAt,
+            cancelledAt: nextStatus === 'cancelled' ? nowIso : item.cancelledAt,
+            noShowAt: nextStatus === 'no_show' ? nowIso : item.noShowAt
           };
         }
         return item;
       })
     );
+    return { success: true };
   };
 
   return (
@@ -626,6 +679,8 @@ export function QueueProvider({ children }) {
         toggleBarberBreak,
         toggleServiceActive,
         toggleBarberOnDuty,
+        isAllBarbersOnBreak,
+        ALLOWED_TRANSITIONS,
         markCustomerNoShow,
         cancelCustomerSpot,
         setCustomerStatus

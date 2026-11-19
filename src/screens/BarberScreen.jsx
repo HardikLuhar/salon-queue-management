@@ -159,7 +159,7 @@ export default function BarberScreen() {
         {/* Available / Break Toggle Pill */}
         <button
           onClick={() => toggleBarberBreak(activeBarber.id)}
-          className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all border ${
+          className={`flex items-center gap-1.5 px-4 py-2 min-h-[44px] sm:min-h-[48px] rounded-full text-xs font-semibold transition-all border ${
             isOnBreak
               ? 'bg-red-50 text-red-700 border-red-200'
               : 'bg-emerald-50 text-emerald-800 border-emerald-200'

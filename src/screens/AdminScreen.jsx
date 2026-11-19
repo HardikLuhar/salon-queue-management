@@ -106,13 +106,13 @@ export default function AdminScreen() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-neutral-200">
             <div>
               <span className="text-[10px] uppercase tracking-widest text-neutral-400 font-mono font-bold block mb-1">
-                Master Online Queue Switch
+                {t('admin.masterQueue')}
               </span>
               <h2 className="font-serif text-2xl font-bold text-neutral-950">
-                {isQueueOpen ? 'Online Check-In is OPEN' : 'Online Check-In is CLOSED'}
+                {isQueueOpen ? t('admin.queueOpen') : t('admin.queueClosed')}
               </h2>
               <p className="text-xs text-neutral-500 mt-1 max-w-lg leading-relaxed">
-                Toggling to Closed prevents new customers from joining remotely at <code className="bg-neutral-100 px-1 py-0.5 rounded text-neutral-800">/join</code>. Receptionists can still register walk-in clients at the front desk.
+                {t('admin.queueDesc')}
               </p>
             </div>
 
@@ -122,7 +122,7 @@ export default function AdminScreen() {
                 setIsQueueOpen(nextState);
                 notify(`Master queue switched to ${nextState ? 'OPEN' : 'CLOSED'}`);
               }}
-              className={`px-6 py-3.5 rounded-full text-xs uppercase tracking-widest font-semibold transition-all flex items-center justify-center gap-2 shadow-xs shrink-0 ${
+              className={`px-6 py-3.5 min-h-[48px] rounded-full text-xs uppercase tracking-widest font-semibold transition-all flex items-center justify-center gap-2 shadow-xs shrink-0 ${
                 isQueueOpen
                   ? 'bg-black text-white hover:bg-neutral-800'
                   : 'bg-red-600 text-white hover:bg-red-700'
@@ -140,7 +140,7 @@ export default function AdminScreen() {
                 <div className="flex items-center gap-2">
                   <Clock className="w-4 h-4 text-neutral-700" />
                   <span className="font-semibold text-xs text-neutral-900">
-                    30-Minute Auto-Cutoff Rule
+                    {t('admin.autoCutoff')}
                   </span>
                   {cutoffActive && (
                     <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold">
@@ -156,7 +156,7 @@ export default function AdminScreen() {
               <div className="flex items-center gap-3">
                 <div className="text-left sm:text-right">
                   <label className="text-[10px] uppercase tracking-wider text-neutral-400 font-mono block">
-                    Closing Time
+                    {t('admin.closingTime')}
                   </label>
                   <input
                     type="time"
@@ -178,14 +178,14 @@ export default function AdminScreen() {
           <div className="flex items-center justify-between pb-4 mb-4 border-b border-neutral-200">
             <div>
               <span className="text-[10px] uppercase tracking-widest text-neutral-400 font-mono font-bold block mb-1">
-                Service Catalog
+                {t('admin.servicesTitle')}
               </span>
               <h2 className="font-serif text-2xl font-bold text-neutral-950">
                 Salon Services & Pricing ({services.length})
               </h2>
             </div>
             <span className="text-xs text-neutral-500 font-mono">
-              {services.filter(s => s.active).length} Active Services
+              {services.filter(s => s.active).length} {t('admin.active')}
             </span>
           </div>
 
@@ -200,14 +200,14 @@ export default function AdminScreen() {
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="font-serif font-bold text-base text-neutral-900">
-                      {srv.nameEn}
+                      {lang === 'gu' ? srv.nameGu : srv.nameEn}
                     </span>
                     <span className="text-xs text-neutral-500">
-                      ({srv.nameGu})
+                      ({lang === 'gu' ? srv.nameEn : srv.nameGu})
                     </span>
                   </div>
                   <div className="text-xs text-neutral-500 mt-0.5 font-mono">
-                    ₹{srv.priceInr} · {srv.durationMin} minutes
+                    ₹{srv.priceInr} · {srv.durationMin} {t('queue.mins')}
                   </div>
                 </div>
 
@@ -217,13 +217,13 @@ export default function AdminScreen() {
                     toggleServiceActive(srv.id);
                     notify(`${srv.nameEn} is now ${!srv.active ? 'ACTIVE' : 'INACTIVE'}`);
                   }}
-                  className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all border ${
+                  className={`min-h-[44px] px-4 py-2 rounded-full text-xs font-semibold transition-all border ${
                     srv.active
                       ? 'bg-neutral-900 text-white border-black'
                       : 'bg-white text-neutral-500 border-neutral-300 hover:border-black'
                   }`}
                 >
-                  {srv.active ? 'Active' : 'Hidden'}
+                  {srv.active ? t('admin.active') : t('admin.inactive')}
                 </button>
               </div>
             ))}
@@ -235,14 +235,14 @@ export default function AdminScreen() {
           <div className="flex items-center justify-between pb-4 mb-4 border-b border-neutral-200">
             <div>
               <span className="text-[10px] uppercase tracking-widest text-neutral-400 font-mono font-bold block mb-1">
-                Staff Roster
+                {t('admin.staffTitle')}
               </span>
               <h2 className="font-serif text-2xl font-bold text-neutral-950">
                 Master Barbers on Duty Today
               </h2>
             </div>
             <span className="text-xs text-neutral-500 font-mono">
-              {barbers.filter(b => b.onDuty).length} on duty
+              {barbers.filter(b => b.onDuty).length} {t('admin.onDuty')}
             </span>
           </div>
 
@@ -272,13 +272,13 @@ export default function AdminScreen() {
 
                 <button
                   onClick={() => handleBarberToggle(b.id)}
-                  className={`w-full py-2.5 rounded-xl text-xs uppercase tracking-wider font-semibold transition-all border ${
+                  className={`w-full min-h-[48px] py-2.5 rounded-xl text-xs uppercase tracking-wider font-semibold transition-all border ${
                     b.onDuty
                       ? 'bg-black text-white border-black'
                       : 'bg-white text-neutral-600 border-neutral-300 hover:border-black'
                   }`}
                 >
-                  {b.onDuty ? 'On Duty Today' : 'Off Duty'}
+                  {b.onDuty ? t('admin.onDuty') : t('admin.offDuty')}
                 </button>
               </div>
             ))}
@@ -290,7 +290,7 @@ export default function AdminScreen() {
           <div className="flex items-center justify-between pb-4 mb-6 border-b border-neutral-800">
             <div>
               <span className="text-[10px] uppercase tracking-widest text-neutral-400 font-mono font-bold block mb-1">
-                Analytics
+                {t('admin.analyticsTitle')}
               </span>
               <h2 className="font-serif text-2xl font-bold text-white">
                 Today's Salon Performance
@@ -312,7 +312,7 @@ export default function AdminScreen() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
             <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-5">
               <span className="text-xs uppercase tracking-wider text-neutral-400 font-mono block mb-1">
-                Customers Served
+                {t('admin.served')}
               </span>
               <div className="font-serif text-4xl font-bold text-white">
                 {stats.servedToday}
@@ -324,7 +324,7 @@ export default function AdminScreen() {
 
             <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-5">
               <span className="text-xs uppercase tracking-wider text-neutral-400 font-mono block mb-1">
-                Average Wait Time
+                {t('admin.avgWait')}
               </span>
               <div className="font-serif text-4xl font-bold text-emerald-400">
                 {stats.avgWaitMin} min
@@ -336,7 +336,7 @@ export default function AdminScreen() {
 
             <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-5">
               <span className="text-xs uppercase tracking-wider text-neutral-400 font-mono block mb-1">
-                No-Shows Recorded
+                {t('admin.noShows')}
               </span>
               <div className="font-serif text-4xl font-bold text-red-400">
                 {stats.noShowsToday}

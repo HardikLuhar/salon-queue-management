@@ -101,7 +101,7 @@ export default function DisplayScreen() {
               {calledAlertBanner.token}
             </span>
             <span className="font-serif text-2xl sm:text-3xl font-bold">
-              {calledAlertBanner.name} $\rightarrow$ Please proceed to Chair #{calledAlertBanner.chair} ({calledAlertBanner.barberName})
+              {calledAlertBanner.name} → Please proceed to Chair #{calledAlertBanner.chair} ({calledAlertBanner.barberName})
             </span>
           </div>
         </div>
@@ -272,8 +272,8 @@ export default function DisplayScreen() {
         </div>
 
         {waitingSorted.length === 0 ? (
-          <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-4 text-center text-sm text-neutral-500 font-serif">
-            No customers currently waiting. Walk in for instant service!
+          <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-4 text-center text-sm text-neutral-400 font-serif">
+            {t('queue.noWaiting')}
           </div>
         ) : (
           <div className="grid grid-cols-5 gap-4">

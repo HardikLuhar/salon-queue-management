@@ -80,11 +80,11 @@ export default function Header() {
             <button
               onClick={toggleLang}
               type="button"
-              className="flex items-center text-xs font-medium bg-neutral-100 border border-neutral-300 rounded-full p-0.5 transition-all focus:outline-none focus:ring-1 focus:ring-black"
+              className="flex items-center min-h-[44px] text-xs font-medium bg-neutral-100 border border-neutral-300 rounded-full p-1 transition-all focus:outline-none focus:ring-1 focus:ring-black"
               title="Toggle English / Gujarati"
             >
               <span
-                className={`px-2.5 py-1 rounded-full transition-all ${
+                className={`px-3 py-1.5 rounded-full transition-all ${
                   lang === 'en'
                     ? 'bg-black text-white shadow-xs font-semibold'
                     : 'text-neutral-600 hover:text-black'
@@ -93,7 +93,7 @@ export default function Header() {
                 EN
               </span>
               <span
-                className={`px-2.5 py-1 rounded-full transition-all ${
+                className={`px-3 py-1.5 rounded-full transition-all ${
                   lang === 'gu'
                     ? 'bg-black text-white shadow-xs font-semibold'
                     : 'text-neutral-600 hover:text-black'
@@ -103,6 +103,26 @@ export default function Header() {
               </span>
             </button>
           </div>
+        </div>
+
+        {/* Mobile Viewport Navigation Strip */}
+        <div className="flex md:hidden bg-neutral-50/90 border-t border-neutral-200 px-4 py-2 overflow-x-auto no-scrollbar gap-1.5">
+          {navLinks.map((link) => {
+            const isActive = location.pathname === link.to;
+            return (
+              <Link
+                key={link.to}
+                to={link.to}
+                className={`min-h-[44px] px-3.5 py-2 text-xs font-medium rounded-full shrink-0 flex items-center justify-center transition-all ${
+                  isActive
+                    ? 'bg-black text-white shadow-xs font-semibold'
+                    : 'bg-white border border-neutral-200 text-neutral-700 hover:bg-neutral-100'
+                }`}
+              >
+                {link.label}
+              </Link>
+            );
+          })}
         </div>
       </header>
     </>
