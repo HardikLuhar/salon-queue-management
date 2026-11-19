@@ -128,9 +128,15 @@ export function QueueProvider({ children }) {
   const [isQueueOpen, setIsQueueOpen] = useState(cached?.isQueueOpen ?? true);
   const [closingTime, setClosingTime] = useState(cached?.closingTime ?? '21:00'); // 9:00 PM
   const [simulatedTimeOffsetHours, setSimulatedTimeOffsetHours] = useState(0); // For testing cutoff
-  const [barbers, setBarbers] = useState(cached?.barbers ?? INITIAL_BARBERS);
-  const [services, setServices] = useState(cached?.services ?? INITIAL_SERVICES);
-  const [queue, setQueue] = useState(cached?.queue ?? INITIAL_QUEUE);
+  const [barbers, setBarbers] = useState(() => 
+    Array.isArray(cached?.barbers) && cached.barbers.length > 0 ? cached.barbers : INITIAL_BARBERS
+  );
+  const [services, setServices] = useState(() =>
+    Array.isArray(cached?.services) && cached.services.length > 0 ? cached.services : INITIAL_SERVICES
+  );
+  const [queue, setQueue] = useState(() =>
+    Array.isArray(cached?.queue) ? cached.queue : INITIAL_QUEUE
+  );
   const [tokenCounter, setTokenCounter] = useState(cached?.tokenCounter ?? 16);
   const [stats, setStats] = useState(
     cached?.stats ?? {
@@ -341,7 +347,7 @@ export function QueueProvider({ children }) {
       const standardDuration = Math.max(15, duration);
       if (cust.startedAt) {
         const elapsedMin = Math.floor((Date.now() - new Date(cust.startedAt).getTime()) / 60000);
-        return sum + Math.max(5, standardDuration - elapsedMin);
+        return acc + Math.max(5, standardDuration - elapsedMin);
       }
       return acc + Math.round(standardDuration / 2);
     }, 0);
@@ -741,6 +747,25 @@ export function QueueProvider({ children }) {
       })
     );
     return { success: true };
+  };
+
+  const resetSalonState = () => {
+    try {
+      localStorage.removeItem('salon_queue_master_state_v1');
+    } catch (e) {
+      console.warn('Failed to clear storage:', e);
+    }
+    setIsQueueOpen(true);
+    setClosingTime('21:00');
+    setBarbers(INITIAL_BARBERS);
+    setServices(INITIAL_SERVICES);
+    setQueue(INITIAL_QUEUE);
+    setTokenCounter(16);
+    setStats({
+      servedToday: 18,
+      noShowsToday: 3,
+      avgWaitMin: 14
+    });
   };
 
   return (
