@@ -21,7 +21,7 @@ export const INITIAL_BARBERS = [
     chair: 1,
     status: 'busy', // 'available' | 'busy' | 'on_break'
     onDuty: true,
-    photo: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80&sat=-100'
+    photo: '/photos/barber-1.avif'
   },
   {
     id: 'barber-2',
@@ -29,7 +29,7 @@ export const INITIAL_BARBERS = [
     chair: 2,
     status: 'available',
     onDuty: true,
-    photo: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=300&q=80&sat=-100'
+    photo: '/photos/barber-2.avif'
   },
   {
     id: 'barber-3',
@@ -37,7 +37,7 @@ export const INITIAL_BARBERS = [
     chair: 3,
     status: 'on_break',
     onDuty: true,
-    photo: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80&sat=-100'
+    photo: '/photos/barber-3.avif'
   }
 ];
 
@@ -109,6 +109,83 @@ export function QueueProvider({ children }) {
     avgWaitMin: 14
   });
 
+  // Service lookup helpers
+  const getCustomerServices = (serviceIds = []) => {
+    return serviceIds.map(id => services.find(s => s.id === id)).filter(Boolean);
+  };
+
+  const calculateServicesTotal = (serviceIds = []) => {
+    const selected = getCustomerServices(serviceIds);
+    const duration = selected.reduce((sum, s) => sum + s.durationMin, 0);
+    const price = selected.reduce((sum, s) => sum + s.priceInr, 0);
+    return { duration, price };
+  };
+
+  // Wait time calculation according to docs/03-flows-rules.md Section 5:
+  // Estimated waiting time ≈ total minutes of services ahead ÷ number of barbers working
+  const getEstimatedWaitMinutes = (serviceDuration = 0, preferredBarberId = null) => {
+    const workingBarbers = barbers.filter(b => b.onDuty && b.status !== 'on_break');
+    if (workingBarbers.length === 0) return 0;
+
+    // Sum service minutes of all waiting customers ahead
+    const waitingCustomers = queue.filter(q => q.status === 'waiting');
+    const totalWaitingMinutes = waitingCustomers.reduce((acc, cust) => {
+      const { duration } = calculateServicesTotal(cust.serviceIds);
+      return acc + duration;
+    }, 0);
+
+    // Add estimated remaining minutes of in-chair customers
+    const inChairCustomers = queue.filter(q => q.status === 'in_chair');
+    const inChairMinutes = inChairCustomers.reduce((acc, cust) => {
+      const { duration } = calculateServicesTotal(cust.serviceIds);
+      if (cust.startedAt) {
+        const elapsedMin = Math.floor((Date.now() - new Date(cust.startedAt).getTime()) / 60000);
+        return acc + Math.max(5, duration - elapsedMin);
+      }
+      return acc + Math.round(duration / 2);
+    }, 0);
+
+    const totalWorkload = totalWaitingMinutes + inChairMinutes;
+    return Math.max(5, Math.round(totalWorkload / workingBarbers.length));
+  };
+
+  // Check duplicate active phone number
+  const findActiveSpotByPhone = (phone) => {
+    if (!phone) return null;
+    const cleaned = phone.replace(/\D/g, '');
+    return queue.find(
+      q => q.phone?.replace(/\D/g, '') === cleaned && (q.status === 'waiting' || q.status === 'called')
+    );
+  };
+
+  // Add customer to queue
+  const joinQueue = ({ customerName, phone, serviceIds, preferredBarberId }) => {
+    const existing = findActiveSpotByPhone(phone);
+    if (existing) {
+      return { success: false, existingSpot: existing };
+    }
+
+    const currentNum = tokenCounter;
+    const tokenStr = `S-${currentNum}`;
+    const idStr = `s-${currentNum}`;
+    setTokenCounter(prev => prev + 1);
+
+    const newCustomer = {
+      id: idStr,
+      token: tokenStr,
+      customerName: customerName.trim(),
+      phone: phone.trim(),
+      serviceIds,
+      preferredBarberId: preferredBarberId || null,
+      assignedBarberId: null,
+      status: 'waiting',
+      joinedAt: new Date().toISOString()
+    };
+
+    setQueue(prev => [...prev, newCustomer]);
+    return { success: true, entry: newCustomer };
+  };
+
   return (
     <QueueContext.Provider
       value={{
@@ -127,7 +204,12 @@ export function QueueProvider({ children }) {
         tokenCounter,
         setTokenCounter,
         stats,
-        setStats
+        setStats,
+        getCustomerServices,
+        calculateServicesTotal,
+        getEstimatedWaitMinutes,
+        findActiveSpotByPhone,
+        joinQueue
       }}
     >
       {children}
