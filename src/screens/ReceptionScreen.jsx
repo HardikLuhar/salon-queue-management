@@ -266,9 +266,9 @@ export default function ReceptionScreen() {
       </div>
 
       {/* Main 2-Column Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* LEFT COLUMN: ACTIVE BARBER WORKSTATIONS (5 Columns on Desktop) */}
-        <div className={`lg:col-span-5 space-y-4 ${activeTab === 'queue' ? 'hidden lg:block' : 'block'}`}>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
+        {/* LEFT COLUMN: ACTIVE BARBER WORKSTATIONS (5 Columns on Desktop/Tablet Landscape) */}
+        <div className={`lg:col-span-5 space-y-5 ${activeTab === 'queue' ? 'hidden lg:block' : 'block'}`}>
           <div className="flex items-center justify-between pb-2 border-b border-neutral-200">
             <h2 className="text-xs uppercase tracking-widest text-neutral-600 font-bold">
               Active Barber Workstations
@@ -293,33 +293,34 @@ export default function ReceptionScreen() {
             const elapsedMin = activeCustomer?.startedAt
               ? Math.floor((Date.now() - new Date(activeCustomer.startedAt).getTime()) / 60000)
               : 0;
+            const remainingMin = Math.max(1, targetDuration - elapsedMin);
             const progressPercent = Math.min(100, Math.round((elapsedMin / targetDuration) * 100));
 
             return (
               <div
                 key={b.id}
-                className={`bg-white rounded-2xl p-5 border transition-all ${
+                className={`bg-white rounded-2xl p-5 sm:p-6 border transition-all space-y-4 shadow-xs ${
                   isAvailable
-                    ? 'border-black shadow-xs ring-1 ring-black/5'
+                    ? 'border-black ring-1 ring-black/5'
                     : isOnBreak
                     ? 'border-neutral-200 opacity-70 bg-neutral-50/50'
                     : 'border-neutral-200'
                 }`}
               >
                 {/* Barber Header */}
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3.5">
                     <img
                       src={b.photo}
                       alt={b.name}
-                      className="w-12 h-12 rounded-xl object-cover grayscale contrast-125 border border-neutral-200 shrink-0"
+                      className="w-14 h-14 rounded-2xl object-cover grayscale contrast-125 border border-neutral-300 shrink-0 shadow-2xs"
                     />
                     <div>
-                      <h3 className="font-serif font-bold text-lg text-neutral-900 leading-tight">
+                      <h3 className="font-serif font-bold text-xl text-neutral-950 leading-tight">
                         {b.name}
                       </h3>
-                      <span className="text-xs text-neutral-500 font-mono">
-                        Chair #{b.chair}
+                      <span className="text-xs text-neutral-500 font-mono tracking-wider block mt-0.5">
+                        Chair #{b.chair} Workstation
                       </span>
                     </div>
                   </div>
@@ -347,39 +348,43 @@ export default function ReceptionScreen() {
                   </div>
                 </div>
 
-                {/* Busy State Details */}
+                {/* Busy State Details with Large Architectural Token & Remaining Time */}
                 {isBusy && activeCustomer && (
-                  <div className="bg-neutral-50 rounded-xl p-3.5 mb-4 border border-neutral-200">
-                    <div className="flex items-center justify-between mb-1.5">
-                      <div className="flex items-center gap-2">
-                        <span className="font-serif font-bold text-base text-neutral-950">
+                  <div className="bg-neutral-50 rounded-2xl p-4 sm:p-5 border border-neutral-200 space-y-3">
+                    <div className="flex items-center justify-between pb-3 border-b border-neutral-200">
+                      <div className="flex items-baseline gap-2.5 min-w-0">
+                        <span className="font-serif font-bold text-3xl sm:text-4xl text-neutral-950 tracking-tight leading-none">
                           {activeCustomer.token}
                         </span>
-                        <span className="text-xs text-neutral-700 font-medium truncate max-w-[140px]">
+                        <span className="text-sm font-semibold text-neutral-900 truncate max-w-[150px]">
                           {activeCustomer.customerName}
                         </span>
                       </div>
-                      <span className={`text-[10px] uppercase font-mono font-semibold px-2 py-0.5 rounded-full ${
-                        activeCustomer.status === 'called' ? 'bg-amber-100 text-amber-800' : 'bg-neutral-900 text-white'
+                      <span className={`text-[10px] uppercase font-mono font-bold px-2.5 py-1 rounded-full shrink-0 ${
+                        activeCustomer.status === 'called' ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-neutral-900 text-white'
                       }`}>
                         {activeCustomer.status === 'called' ? 'Summoned' : 'In Chair'}
                       </span>
                     </div>
 
-                    <div className="text-xs text-neutral-500 mb-2 truncate">
+                    <div className="text-xs text-neutral-600 font-medium truncate">
                       {custServices.map(s => (lang === 'gu' ? s.nameGu : s.nameEn)).join(' + ')}
                     </div>
 
-                    {/* Progress Bar */}
+                    {/* Enlarged Linear Progress Bar with Remaining Service Time */}
                     {activeCustomer.status === 'in_chair' && (
-                      <div>
-                        <div className="flex justify-between text-[11px] text-neutral-500 mb-1 font-mono">
-                          <span>{elapsedMin}m elapsed</span>
-                          <span>{targetDuration}m target</span>
+                      <div className="pt-1 space-y-2">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-mono text-neutral-500 font-medium">
+                            {elapsedMin}m elapsed / {targetDuration}m target
+                          </span>
+                          <span className="font-mono font-bold text-xs bg-neutral-200 text-neutral-900 px-2.5 py-0.5 rounded-md">
+                            ~{remainingMin}m remaining
+                          </span>
                         </div>
-                        <div className="w-full bg-neutral-200 rounded-full h-1.5 overflow-hidden">
+                        <div className="w-full bg-neutral-200 rounded-full h-3 overflow-hidden shadow-inner">
                           <div
-                            className="bg-black h-1.5 rounded-full transition-all duration-500"
+                            className="bg-black h-3 rounded-full transition-all duration-500"
                             style={{ width: `${progressPercent}%` }}
                           />
                         </div>
@@ -389,11 +394,11 @@ export default function ReceptionScreen() {
                 )}
 
                 {/* Action Button */}
-                <div>
+                <div className="pt-1">
                   {isAvailable && (
                     <button
                       onClick={() => handleCallNext(b.id)}
-                      className="w-full py-3 rounded-xl text-xs uppercase tracking-widest font-semibold bg-black text-white hover:bg-neutral-800 active:scale-98 transition-all flex items-center justify-center gap-2 shadow-xs"
+                      className="w-full min-h-[48px] py-3 rounded-xl text-xs uppercase tracking-widest font-semibold bg-black text-white hover:bg-neutral-800 active:scale-98 transition-all flex items-center justify-center gap-2 shadow-sm"
                     >
                       <UserCheck className="w-4 h-4" />
                       <span>{t('actions.callNext')} ({b.name})</span>
@@ -403,14 +408,14 @@ export default function ReceptionScreen() {
                   {isBusy && (
                     <button
                       disabled
-                      className="w-full py-3 rounded-xl text-xs uppercase tracking-widest font-semibold bg-neutral-100 text-neutral-400 border border-neutral-200 cursor-not-allowed"
+                      className="w-full min-h-[48px] py-3 rounded-xl text-xs uppercase tracking-widest font-semibold bg-neutral-100 text-neutral-400 border border-neutral-200 cursor-not-allowed flex items-center justify-center"
                     >
                       Active Service in Progress
                     </button>
                   )}
 
                   {isOnBreak && (
-                    <div className="text-center py-2 text-xs text-neutral-400 italic">
+                    <div className="text-center py-3 min-h-[48px] flex items-center justify-center text-xs text-neutral-400 italic">
                       Barber on break · Resumes shortly
                     </div>
                   )}
@@ -420,8 +425,8 @@ export default function ReceptionScreen() {
           })}
         </div>
 
-        {/* RIGHT COLUMN: LIVE WAITING QUEUE (7 Columns on Desktop) */}
-        <div className={`lg:col-span-7 space-y-4 ${activeTab === 'barbers' ? 'hidden lg:block' : 'block'}`}>
+        {/* RIGHT COLUMN: LIVE WAITING QUEUE (7 Columns on Desktop/Tablet Landscape) */}
+        <div className={`lg:col-span-7 space-y-5 ${activeTab === 'barbers' ? 'hidden lg:block' : 'block'}`}>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-neutral-200">
             <div className="flex items-center gap-2">
               <h2 className="text-xs uppercase tracking-widest text-neutral-600 font-bold">
@@ -489,8 +494,8 @@ export default function ReceptionScreen() {
                       }`}
                     >
                       {/* Left: Token & Client */}
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-12 h-12 rounded-xl bg-neutral-900 text-white flex flex-col items-center justify-center shrink-0">
+                      <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                        <div className="w-12 h-12 rounded-xl bg-neutral-900 text-white flex flex-col items-center justify-center shrink-0 shadow-2xs">
                           <span className="font-serif font-bold text-sm leading-none">
                             {cust.token}
                           </span>
@@ -499,36 +504,36 @@ export default function ReceptionScreen() {
                           </span>
                         </div>
 
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
                             <span className="font-medium text-sm text-neutral-950 truncate">
                               {cust.customerName}
                             </span>
                             {cust.isWalkIn && (
-                              <span className="text-[9px] uppercase tracking-wider font-mono font-semibold px-1.5 py-0.5 rounded-sm bg-neutral-200 text-neutral-800">
+                              <span className="text-[9px] uppercase tracking-wider font-mono font-semibold px-1.5 py-0.5 rounded-sm bg-neutral-200 text-neutral-800 shrink-0">
                                 Walk-in
                               </span>
                             )}
                           </div>
 
-                          <div className="text-xs text-neutral-500 truncate">
+                          <div className="text-xs text-neutral-500 truncate mt-0.5">
                             {custServices.map(s => (lang === 'gu' ? s.nameGu : s.nameEn)).join(', ')}
                           </div>
                         </div>
                       </div>
 
-                      {/* Middle: Barber Preference & Elapsed Time */}
-                      <div className="flex items-center gap-4 sm:justify-end text-xs">
-                        <div className="text-left sm:text-right">
+                      {/* Middle & Right: Barber Preference, Elapsed Time & Action */}
+                      <div className="flex items-center gap-4 sm:gap-6 justify-between sm:justify-end text-xs shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-neutral-100">
+                        <div className="text-left sm:text-right min-w-[70px]">
                           <span className="text-[10px] text-neutral-400 uppercase tracking-wider block font-mono">
                             Barber
                           </span>
-                          <span className="font-medium text-neutral-800">
+                          <span className="font-medium text-neutral-800 truncate block">
                             {prefBarber ? prefBarber.name : t('barber.any')}
                           </span>
                         </div>
 
-                        <div className="text-left sm:text-right">
+                        <div className="text-left sm:text-right min-w-[65px]">
                           <span className="text-[10px] text-neutral-400 uppercase tracking-wider block font-mono">
                             Waiting
                           </span>
@@ -541,7 +546,7 @@ export default function ReceptionScreen() {
                         <div>
                           <button
                             onClick={() => cancelCustomerSpot(cust.id)}
-                            className="min-w-[48px] min-h-[48px] flex items-center justify-center rounded-xl text-neutral-400 hover:text-red-600 hover:bg-neutral-100 transition-colors"
+                            className="min-w-[44px] min-h-[44px] sm:min-w-[48px] sm:min-h-[48px] flex items-center justify-center rounded-xl text-neutral-400 hover:text-red-600 hover:bg-neutral-100 transition-colors"
                             title="Cancel spot"
                           >
                             <X className="w-4 h-4" />
