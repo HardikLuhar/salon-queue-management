@@ -92,6 +92,9 @@ export const translations = {
     'reception.filterSpecific': 'Specific',
     'reception.summoned': 'Summoned / Called Customers',
     'reception.callNextFor': 'Call Next for',
+    'reception.putOnBreak': 'Set on break',
+    'reception.endBreak': 'End break · Ready',
+    'reception.finishEarly': 'Finish early & free chair',
 
     // Barber Workstation Screen
     'barber.currentStation': 'Current Station Status',
@@ -228,6 +231,9 @@ export const translations = {
     'reception.filterSpecific': 'ચોક્કસ',
     'reception.summoned': 'બોલાવેલા ગ્રાહકો',
     'reception.callNextFor': 'આગળના બોલાવો -',
+    'reception.putOnBreak': 'બ્રેક પર મૂકો',
+    'reception.endBreak': 'બ્રેક સમાપ્ત કરો · તૈયાર',
+    'reception.finishEarly': 'સેવા વહેલી પૂર્ણ કરો & ખુરશી મુક્ત કરો',
 
     // Barber Workstation Screen
     'barber.currentStation': 'વર્કસ્ટેશન સ્થિતિ',

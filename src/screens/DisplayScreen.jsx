@@ -20,9 +20,8 @@ export default function DisplayScreen() {
     second: '2-digit'
   });
 
-  // Track newly called token to flash & play chime
+  // Track newly called token to play chime
   const prevCalledIdRef = useRef(null);
-  const [calledAlertBanner, setCalledAlertBanner] = useState(null);
 
   // Synthesized Web Audio API Chime (Two-tone D5 -> A5)
   const playChime = () => {
@@ -59,31 +58,16 @@ export default function DisplayScreen() {
     }
   };
 
-  // Detect newly called customer
+  // Detect newly called customer to play chime
   const calledCustomer = queue.find(q => q.status === 'called');
   useEffect(() => {
     if (calledCustomer && calledCustomer.id !== prevCalledIdRef.current) {
       prevCalledIdRef.current = calledCustomer.id;
-      const barber = barbers.find(b => b.id === calledCustomer.assignedBarberId);
-
-      setCalledAlertBanner({
-        token: calledCustomer.token,
-        name: calledCustomer.customerName,
-        barberName: barber?.name || 'Master Barber',
-        chair: barber?.chair || 1
-      });
-
       playChime();
-
-      // Clear flashing banner after 15 seconds
-      const timeout = setTimeout(() => {
-        setCalledAlertBanner(null);
-      }, 15000);
-      return () => clearTimeout(timeout);
     } else if (!calledCustomer) {
       prevCalledIdRef.current = null;
     }
-  }, [calledCustomer, barbers]);
+  }, [calledCustomer]);
 
   // Next 5 tokens in queue
   const waitingSorted = queue
@@ -93,20 +77,6 @@ export default function DisplayScreen() {
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-black text-white flex flex-col justify-between p-6 lg:p-10 select-none font-sans">
-      {/* Newly Called Customer Flash Banner Takeover */}
-      {calledAlertBanner && (
-        <div className="absolute top-0 left-0 right-0 z-50 bg-white text-black py-4 px-6 shadow-2xl flex items-center justify-between animate-pulse">
-          <div className="flex items-center gap-4 mx-auto text-center">
-            <span className="font-mono text-2xl font-bold bg-black text-white px-3 py-1 rounded-lg">
-              {calledAlertBanner.token}
-            </span>
-            <span className="font-serif text-2xl sm:text-3xl font-bold">
-              {calledAlertBanner.name} → Please proceed to Chair #{calledAlertBanner.chair} ({calledAlertBanner.barberName})
-            </span>
-          </div>
-        </div>
-      )}
-
       {/* TOP HEADER BAND */}
       <header className="flex items-center justify-between pb-6 border-b border-neutral-800">
         <div className="flex items-center gap-4">
@@ -252,7 +222,7 @@ export default function DisplayScreen() {
                 </div>
 
                 <div className="text-center text-[11px] text-neutral-600 font-mono">
-                  {activeCust ? (isCalledThisBarber ? 'Customer requested to proceed to chair' : 'Service currently active') : 'Chair available for FIFO queue'}
+                  {activeCust ? 'Service currently active' : 'Chair available for FIFO queue'}
                 </div>
               </div>
             );

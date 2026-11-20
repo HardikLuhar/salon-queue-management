@@ -10,9 +10,11 @@ import {
   Plus,
   Phone,
   CheckCircle2,
+  CheckCircle,
   Filter,
   UserPlus,
-  Scissors
+  Scissors,
+  Coffee
 } from 'lucide-react';
 
 export default function ReceptionScreen() {
@@ -25,6 +27,8 @@ export default function ReceptionScreen() {
     stats,
     isQueueOpen,
     callNextCustomer,
+    completeService,
+    toggleBarberBreak,
     markCustomerNoShow,
     reAddNoShowCustomer,
     cancelCustomerSpot,
@@ -88,6 +92,26 @@ export default function ReceptionScreen() {
       notify(`Summoned Token ${result.customer.token} (${result.customer.customerName}) for ${barber?.name}!`);
     } else {
       notify(result.error, true);
+    }
+  };
+
+  // Toggle Barber Break by Receptionist
+  const handleToggleBreak = (barberId, barberName, currentStatus) => {
+    toggleBarberBreak(barberId);
+    if (currentStatus === 'on_break') {
+      notify(`${barberName} is back from break and ready for clients.`);
+    } else {
+      notify(`${barberName} has been put on break.`);
+    }
+  };
+
+  // Receptionist marks early finish & frees chair
+  const handleFinishEarly = (barberId, barberName, token) => {
+    const res = completeService(barberId);
+    if (res.success) {
+      notify(`Service for Token ${token} marked completed! ${barberName}'s chair is now free.`);
+    } else {
+      notify(res.error || 'Failed to complete service.', true);
     }
   };
 
@@ -290,8 +314,9 @@ export default function ReceptionScreen() {
             // Compute elapsed/remaining service duration
             const custServices = activeCustomer ? getCustomerServices(activeCustomer.serviceIds) : [];
             const targetDuration = custServices.reduce((sum, s) => sum + s.durationMin, 30);
-            const elapsedMin = activeCustomer?.startedAt
-              ? Math.floor((Date.now() - new Date(activeCustomer.startedAt).getTime()) / 60000)
+            const startTimeIso = activeCustomer?.startedAt || activeCustomer?.calledAt;
+            const elapsedMin = startTimeIso
+              ? Math.floor((Date.now() - new Date(startTimeIso).getTime()) / 60000)
               : 0;
             const remainingMin = Math.max(1, targetDuration - elapsedMin);
             const progressPercent = Math.min(100, Math.round((elapsedMin / targetDuration) * 100));
@@ -372,7 +397,7 @@ export default function ReceptionScreen() {
                     </div>
 
                     {/* Enlarged Linear Progress Bar with Remaining Service Time */}
-                    {activeCustomer.status === 'in_chair' && (
+                    {(activeCustomer.status === 'in_chair' || activeCustomer.status === 'called') && (
                       <div className="pt-1 space-y-2">
                         <div className="flex items-center justify-between text-xs">
                           <span className="font-mono text-neutral-500 font-medium">
@@ -393,30 +418,59 @@ export default function ReceptionScreen() {
                   </div>
                 )}
 
-                {/* Action Button */}
+                {/* Action Buttons */}
                 <div className="pt-1">
                   {isAvailable && (
-                    <button
-                      onClick={() => handleCallNext(b.id)}
-                      className="w-full min-h-[48px] py-3 rounded-xl text-xs uppercase tracking-widest font-semibold bg-black text-white hover:bg-neutral-800 active:scale-98 transition-all flex items-center justify-center gap-2 shadow-sm"
-                    >
-                      <UserCheck className="w-4 h-4" />
-                      <span>{t('actions.callNext')} ({b.name})</span>
-                    </button>
+                    <div className="space-y-2">
+                      <button
+                        onClick={() => handleCallNext(b.id)}
+                        className="w-full min-h-[48px] py-3 rounded-xl text-xs uppercase tracking-widest font-semibold bg-black text-white hover:bg-neutral-800 active:scale-98 transition-all flex items-center justify-center gap-2 shadow-sm"
+                      >
+                        <UserCheck className="w-4 h-4" />
+                        <span>{t('actions.callNext')} ({b.name})</span>
+                      </button>
+                      <button
+                        onClick={() => handleToggleBreak(b.id, b.name, b.status)}
+                        className="w-full py-2 rounded-xl text-[11px] font-medium text-neutral-600 hover:text-neutral-900 border border-neutral-200 hover:border-neutral-400 bg-white hover:bg-neutral-50 transition-all flex items-center justify-center gap-1.5"
+                      >
+                        <Coffee className="w-3.5 h-3.5 text-neutral-500" />
+                        <span>{t('reception.putOnBreak')}</span>
+                      </button>
+                    </div>
                   )}
 
                   {isBusy && (
-                    <button
-                      disabled
-                      className="w-full min-h-[48px] py-3 rounded-xl text-xs uppercase tracking-widest font-semibold bg-neutral-100 text-neutral-400 border border-neutral-200 cursor-not-allowed flex items-center justify-center"
-                    >
-                      Active Service in Progress
-                    </button>
+                    <div className="space-y-2">
+                      <button
+                        disabled
+                        className="w-full min-h-[44px] py-2.5 rounded-xl text-xs uppercase tracking-widest font-semibold bg-neutral-100 text-neutral-400 border border-neutral-200 cursor-not-allowed flex items-center justify-center"
+                      >
+                        Active Service in Progress
+                      </button>
+                      {activeCustomer && (
+                        <button
+                          onClick={() => handleFinishEarly(b.id, b.name, activeCustomer.token)}
+                          className="w-full py-2.5 rounded-xl text-[11px] font-medium text-neutral-800 hover:text-black border border-neutral-300 hover:border-black bg-white hover:bg-neutral-50 transition-all flex items-center justify-center gap-1.5 shadow-2xs"
+                        >
+                          <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>{t('reception.finishEarly')}</span>
+                        </button>
+                      )}
+                    </div>
                   )}
 
                   {isOnBreak && (
-                    <div className="text-center py-3 min-h-[48px] flex items-center justify-center text-xs text-neutral-400 italic">
-                      Barber on break · Resumes shortly
+                    <div className="space-y-2">
+                      <div className="text-center py-1 text-xs text-neutral-400 italic">
+                        Barber on break · Resumes shortly
+                      </div>
+                      <button
+                        onClick={() => handleToggleBreak(b.id, b.name, b.status)}
+                        className="w-full min-h-[44px] py-2.5 rounded-xl text-xs uppercase tracking-widest font-semibold bg-emerald-600 hover:bg-emerald-700 text-white active:scale-98 transition-all flex items-center justify-center gap-1.5 shadow-sm"
+                      >
+                        <UserCheck className="w-4 h-4" />
+                        <span>{t('reception.endBreak')}</span>
+                      </button>
                     </div>
                   )}
                 </div>

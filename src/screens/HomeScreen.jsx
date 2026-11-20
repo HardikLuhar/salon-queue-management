@@ -58,6 +58,12 @@ export default function HomeScreen() {
             src="/photos/razor.avif"
             alt="Straight Razor Craft"
             className="w-full h-full object-cover grayscale contrast-125 transition-transform duration-700 group-hover:scale-105"
+            onError={(e) => {
+              if (!e.currentTarget.dataset.retried) {
+                e.currentTarget.dataset.retried = 'true';
+                e.currentTarget.src = '/photos/Razor.avif';
+              }
+            }}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent flex items-end p-3">
             <span className="text-white text-xs font-serif tracking-wide">Razor Shave</span>

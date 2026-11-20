@@ -3,7 +3,6 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQueue } from '../context/QueueContext';
 import {
   Scissors,
-  Play,
   CheckCircle,
   Coffee,
   Clock,
@@ -11,7 +10,8 @@ import {
   AlertCircle,
   User,
   CheckCircle2,
-  Calendar
+  Calendar,
+  UserCheck
 } from 'lucide-react';
 
 export default function BarberScreen() {
@@ -25,6 +25,7 @@ export default function BarberScreen() {
     services,
     startService,
     completeService,
+    callNextCustomer,
     toggleBarberBreak,
     getCustomerServices,
     calculateServicesTotal
@@ -61,9 +62,10 @@ export default function BarberScreen() {
 
   // Service stopwatch effect
   useEffect(() => {
-    if (activeCustomer && activeCustomer.status === 'in_chair' && activeCustomer.startedAt) {
+    const startIso = activeCustomer?.startedAt || activeCustomer?.calledAt;
+    if (activeCustomer && startIso) {
       const updateTimer = () => {
-        const startMs = new Date(activeCustomer.startedAt).getTime();
+        const startMs = new Date(startIso).getTime();
         const diffSec = Math.max(0, Math.floor((Date.now() - startMs) / 1000));
         setElapsedSeconds(diffSec);
       };
@@ -73,7 +75,7 @@ export default function BarberScreen() {
     } else {
       setElapsedSeconds(0);
     }
-  }, [activeCustomer?.status, activeCustomer?.startedAt]);
+  }, [activeCustomer?.id, activeCustomer?.startedAt, activeCustomer?.calledAt]);
 
   // Format MM:SS
   const formatTime = (secs) => {
@@ -82,22 +84,21 @@ export default function BarberScreen() {
     return `${String(mins).padStart(2, '0')}:${String(remSecs).padStart(2, '0')}`;
   };
 
-  // Actions
-  const handleStart = () => {
-    const res = startService(activeBarber.id);
-    if (res.success) {
-      notify(`Service started for Token ${res.customer.token}!`);
-    } else {
-      notify(res.error);
-    }
-  };
-
   const handleDone = () => {
     const res = completeService(activeBarber.id);
     if (res.success) {
       notify(`Service completed for Token ${res.customer.token}! Chair is now available.`);
     } else {
       notify(res.error);
+    }
+  };
+
+  const handleCallNext = () => {
+    const res = callNextCustomer(activeBarber.id);
+    if (res.success) {
+      notify(`Summoned Token ${res.customer.token} (${res.customer.customerName})!`);
+    } else {
+      notify(res.error || 'No eligible customer waiting in queue.');
     }
   };
 
@@ -217,60 +218,59 @@ export default function BarberScreen() {
               ))}
             </div>
 
-            {/* In-Chair Running Stopwatch & Linear Progress Bar */}
-            {isInChair && (
-              <div className="my-6 p-4 rounded-2xl bg-neutral-50 border border-neutral-200">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-1.5 text-xs text-neutral-500 font-mono">
-                    <Clock className="w-3.5 h-3.5" />
-                    <span>Elapsed Service Time</span>
-                  </div>
-                  <div className="font-mono text-xl font-bold text-neutral-950">
-                    {formatTime(elapsedSeconds)} / {targetDurationMin}:00
-                  </div>
+            {/* Running Stopwatch & Linear Progress Bar */}
+            <div className="my-6 p-4 rounded-2xl bg-neutral-50 border border-neutral-200">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-1.5 text-xs text-neutral-500 font-mono">
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>Elapsed Service Time</span>
                 </div>
-
-                <div className="w-full bg-neutral-200 rounded-full h-2 overflow-hidden">
-                  <div
-                    className="bg-black h-2 rounded-full transition-all duration-500"
-                    style={{ width: `${progressPercent}%` }}
-                  />
+                <div className="font-mono text-xl font-bold text-neutral-950">
+                  {formatTime(elapsedSeconds)} / {targetDurationMin}:00
                 </div>
               </div>
-            )}
 
-            {/* Primary Action Buttons */}
+              <div className="w-full bg-neutral-200 rounded-full h-2 overflow-hidden">
+                <div
+                  className="bg-black h-2 rounded-full transition-all duration-500"
+                  style={{ width: `${progressPercent}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Primary Action Button: Complete Session */}
             <div className="pt-2">
-              {isCalled && (
-                <button
-                  onClick={handleStart}
-                  className="w-full py-4 rounded-full text-xs uppercase tracking-widest font-semibold bg-emerald-600 text-white hover:bg-emerald-700 active:scale-98 transition-all flex items-center justify-center gap-2 shadow-md"
-                >
-                  <Play className="w-4 h-4 fill-white" />
-                  <span>{t('actions.start')}</span>
-                </button>
-              )}
-
-              {isInChair && (
-                <button
-                  onClick={handleDone}
-                  className="w-full py-4 rounded-full text-xs uppercase tracking-widest font-semibold bg-black text-white hover:bg-neutral-800 active:scale-98 transition-all flex items-center justify-center gap-2 shadow-md"
-                >
-                  <CheckCircle className="w-4 h-4" />
-                  <span>{t('actions.done')} / Complete Session</span>
-                </button>
-              )}
+              <button
+                onClick={handleDone}
+                className="w-full py-4 rounded-full text-xs uppercase tracking-widest font-semibold bg-black text-white hover:bg-neutral-800 active:scale-98 transition-all flex items-center justify-center gap-2 shadow-md"
+              >
+                <CheckCircle className="w-4 h-4" />
+                <span>{t('actions.done')} / Complete Session</span>
+              </button>
             </div>
           </div>
         ) : (
-          <div className="py-12 text-center text-neutral-400">
+          <div className="py-8 text-center text-neutral-400">
             <Scissors className="w-10 h-10 mx-auto mb-3 opacity-30" />
             <div className="font-serif text-lg font-semibold text-neutral-800">
-              Chair is Open & Available
+              {isOnBreak ? t('barber.onBreak') : 'Chair is Open & Available'}
             </div>
             <p className="text-xs text-neutral-500 mt-1 max-w-xs mx-auto">
-              Ready for your next client. Reception can summon the next waiting customer.
+              {isOnBreak
+                ? 'You are currently on break. Toggle your break pill above when ready to resume.'
+                : 'Ready for your next client? Call them directly or reception can summon them.'}
             </p>
+            {!isOnBreak && (
+              <div className="mt-5 max-w-xs mx-auto">
+                <button
+                  onClick={handleCallNext}
+                  className="w-full py-3.5 rounded-full text-xs uppercase tracking-widest font-semibold bg-black text-white hover:bg-neutral-800 active:scale-98 transition-all flex items-center justify-center gap-2 shadow-md"
+                >
+                  <UserCheck className="w-4 h-4" />
+                  <span>{t('actions.callNext')} Customer</span>
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

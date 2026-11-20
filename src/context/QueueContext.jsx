@@ -499,7 +499,8 @@ export function QueueProvider({ children }) {
             ...item,
             status: 'called',
             assignedBarberId: barberId,
-            calledAt: nowIso
+            calledAt: nowIso,
+            startedAt: nowIso
           };
         }
         return item;
@@ -554,17 +555,17 @@ export function QueueProvider({ children }) {
   };
 
   const completeService = (barberId) => {
-    const inChairCust = queue.find(
-      q => q.assignedBarberId === barberId && q.status === 'in_chair'
+    const activeCust = queue.find(
+      q => q.assignedBarberId === barberId && (q.status === 'in_chair' || q.status === 'called')
     );
-    if (!inChairCust) {
-      return { success: false, error: 'No active in-chair customer found to complete.' };
+    if (!activeCust) {
+      return { success: false, error: 'No active customer found to complete at this station.' };
     }
 
     const nowIso = new Date().toISOString();
     setQueue(prev =>
       prev.map(item => {
-        if (item.id === inChairCust.id) {
+        if (item.id === activeCust.id) {
           return {
             ...item,
             status: 'done',
@@ -592,7 +593,7 @@ export function QueueProvider({ children }) {
       servedToday: prev.servedToday + 1
     }));
 
-    return { success: true, customer: inChairCust };
+    return { success: true, customer: activeCust };
   };
 
   // Toggle Barber Break
