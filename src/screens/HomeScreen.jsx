@@ -158,42 +158,42 @@ export default function HomeScreen() {
             return (
               <div
                 key={b.id}
-                className="bg-white border border-neutral-200 rounded-2xl p-4 flex items-center gap-4 transition-all hover:border-black group"
+                className="bg-white border border-neutral-200 rounded-2xl p-4 sm:p-5 flex items-center gap-4 sm:gap-5 transition-all hover:border-black hover:shadow-md group"
               >
-                <div className="w-16 h-16 rounded-xl overflow-hidden bg-neutral-100 shrink-0 border border-neutral-200">
+                <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl overflow-hidden bg-neutral-100 shrink-0 border border-neutral-200 shadow-2xs">
                   <img
                     src={b.photo}
                     alt={b.name}
-                    className="w-full h-full object-cover grayscale contrast-125 transition-transform duration-500 group-hover:scale-105"
+                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                   />
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-1 mb-1">
-                    <h3 className="font-serif font-semibold text-lg text-neutral-900 truncate">
-                      {b.name}
-                    </h3>
-                    <span className="text-[10px] tracking-wider text-neutral-400 uppercase font-mono">
+                  <div className="flex flex-col gap-0.5 mb-2">
+                    <span className="text-[10px] tracking-widest text-neutral-400 uppercase font-mono font-medium">
                       Chair #{b.chair}
                     </span>
+                    <h3 className="font-serif font-bold text-xl sm:text-2xl text-neutral-900 truncate">
+                      {b.name}
+                    </h3>
                   </div>
 
                   {isBusy && (
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-neutral-900 text-white">
-                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-neutral-900 text-white">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
                       <span>{t('barber.busy')}</span>
                     </span>
                   )}
 
                   {isAvailable && (
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-800 border border-emerald-200">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                       <span>{t('barber.available')}</span>
                     </span>
                   )}
 
                   {isOnBreak && (
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-neutral-100 text-neutral-500 border border-neutral-200">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-neutral-100 text-neutral-500 border border-neutral-200">
                       <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
                       <span>{t('barber.onBreak')}</span>
                     </span>
