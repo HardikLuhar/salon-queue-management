@@ -31,7 +31,7 @@ export const INITIAL_BARBERS = [
     chair: 1,
     status: 'busy', // 'available' | 'busy' | 'on_break'
     onDuty: true,
-    photo: '/photos/barber-1.avif'
+    photo: '/photos/b1.png'
   },
   {
     id: 'barber-2',
@@ -39,7 +39,7 @@ export const INITIAL_BARBERS = [
     chair: 2,
     status: 'available',
     onDuty: true,
-    photo: '/photos/barber-2.avif'
+    photo: '/photos/b2.png'
   },
   {
     id: 'barber-3',
@@ -47,7 +47,7 @@ export const INITIAL_BARBERS = [
     chair: 3,
     status: 'on_break',
     onDuty: true,
-    photo: '/photos/barber-3.avif'
+    photo: '/photos/b3.png'
   }
 ];
 
@@ -128,9 +128,18 @@ export function QueueProvider({ children }) {
   const [isQueueOpen, setIsQueueOpen] = useState(cached?.isQueueOpen ?? true);
   const [closingTime, setClosingTime] = useState(cached?.closingTime ?? '21:00'); // 9:00 PM
   const [simulatedTimeOffsetHours, setSimulatedTimeOffsetHours] = useState(0); // For testing cutoff
-  const [barbers, setBarbers] = useState(() => 
-    Array.isArray(cached?.barbers) && cached.barbers.length > 0 ? cached.barbers : INITIAL_BARBERS
-  );
+  const [barbers, setBarbers] = useState(() => {
+    if (Array.isArray(cached?.barbers) && cached.barbers.length > 0) {
+      return cached.barbers.map(b => {
+        const initialMatch = INITIAL_BARBERS.find(ib => ib.id === b.id);
+        return {
+          ...b,
+          photo: initialMatch ? initialMatch.photo : b.photo
+        };
+      });
+    }
+    return INITIAL_BARBERS;
+  });
   const [services, setServices] = useState(() =>
     Array.isArray(cached?.services) && cached.services.length > 0 ? cached.services : INITIAL_SERVICES
   );
