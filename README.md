@@ -1,31 +1,46 @@
 # Salon Queue Management System
 
-**Live Demo:** https://salon-queue-management-pi.vercel.app/
+**Live demo:** https://salon-queue-management-pi.vercel.app/  
+**Hosted on:** Vercel (frontend)
+
+### Staff Test Logins & Workstation PINs:
+- **Owner Admin Screen (`/admin`):** PIN `1234` (controls queue master switch, 30-min auto-cutoff, services catalog, and staff duty roster)
+- **Reception Desk (`/reception`):** Open staff access — no PIN required for demo evaluation (call next, walk-ins, break toggles, early finish)
+- **Barber Workstations:** Dedicated workstation views with live timers:
+  - Chair 1 (Ravi): [`/barber/ravi`](https://salon-queue-management-pi.vercel.app/barber/ravi)
+  - Chair 2 (Amit): [`/barber/amit`](https://salon-queue-management-pi.vercel.app/barber/amit)
+  - Chair 3 (Imran): [`/barber/imran`](https://salon-queue-management-pi.vercel.app/barber/imran)
+- **Waiting Area TV Display (`/display`):** Fullscreen public lobby mode with Web Audio API chime on customer call: [`/display`](https://salon-queue-management-pi.vercel.app/display)
 
 ---
 
-### Quick Navigation to All 7 Screens (Live on Vercel)
+## About
 
-| # | Screen | Live Production Link | Description & Access |
+**The Barber & Co.** Salon Queue Management System is an editorial, high-fashion web application built with **React**, **Vite**, and **Tailwind CSS**. It is designed to eliminate weekend waiting chaos in luxury salons and barbershops by uniting remote mobile check-ins and physical walk-ins into a synchronized, transparent First-In-First-Out (FIFO) queue.
+
+The application features full real-time state synchronization across all viewports (Customer phone, Receptionist tablet, Barber workstation, and Lobby Wall TV), strict barber preference logic, single-chair concurrency protection, 30-minute automated closing cutoff, and 100% centralized English and Gujarati (ગુજરાતી) bilingual localization.
+
+---
+
+### Quick Navigation to All 7 Screens
+
+| # | Screen | Direct Live Link | Description & Access |
 |---|---|---|---|
-| **1** | **Salon Home** | [salon-queue-management-pi.vercel.app/](https://salon-queue-management-pi.vercel.app/) | Customer landing page, live salon flow, barber availability & wait estimates |
-| **2** | **Join Queue** | [salon-queue-management-pi.vercel.app/join](https://salon-queue-management-pi.vercel.app/join) | Remote check-in, service selection (max 3), barber preference & token generation |
-| **3** | **My Status Tracker** | [salon-queue-management-pi.vercel.app/status/s-14](https://salon-queue-management-pi.vercel.app/status/s-14) | Live rank, dynamic 2nd-in-line approach alert, full-screen called takeover |
-| **4** | **Reception Dashboard** | [salon-queue-management-pi.vercel.app/reception](https://salon-queue-management-pi.vercel.app/reception) | Master queue command center, walk-in modal, break toggles & session completions *(No PIN required)* |
-| **5** | **Barber Workstation** | [salon-queue-management-pi.vercel.app/barber/amit](https://salon-queue-management-pi.vercel.app/barber/amit) | Dedicated chair view (`/barber/ravi`, `/barber/amit`, `/barber/imran`), service timer & completion |
+| **1** | **Salon Home** | [salon-queue-management-pi.vercel.app/](https://salon-queue-management-pi.vercel.app/) | Live salon flow, on-duty barber availability cards & estimated wait times |
+| **2** | **Join Queue** | [salon-queue-management-pi.vercel.app/join](https://salon-queue-management-pi.vercel.app/join) | Remote check-in, service selection (max 3), barber preference & token issue |
+| **3** | **My Status Tracker** | [salon-queue-management-pi.vercel.app/status/s-14](https://salon-queue-management-pi.vercel.app/status/s-14) | Live queue rank, dynamic 2nd-in-line travel alert, full-screen called takeover |
+| **4** | **Reception Dashboard** | [salon-queue-management-pi.vercel.app/reception](https://salon-queue-management-pi.vercel.app/reception) | Master command center, walk-in modal, break toggles & session completions *(Staff Access)* |
+| **5** | **Barber Workstation** | [salon-queue-management-pi.vercel.app/barber/amit](https://salon-queue-management-pi.vercel.app/barber/amit) | Dedicated workstation view, service stopwatch, and session completion |
 | **6** | **Waiting Area Wall TV** | [salon-queue-management-pi.vercel.app/display](https://salon-queue-management-pi.vercel.app/display) | Fullscreen landscape dashboard for lobby TV with synthesized audio chime |
 | **7** | **Owner Admin Settings** | [salon-queue-management-pi.vercel.app/admin](https://salon-queue-management-pi.vercel.app/admin) | Queue master switch, 30-min auto-cutoff, service catalog & barber roster *(PIN: `1234`)* |
 
 ---
 
-## 1. Project Overview
+## 1. Visual Identity & Editorial Design System
 
-**The Barber & Co.** Salon Queue Management System is an editorial, high-fashion web application built with **React**, **Vite**, and **Tailwind CSS**. It is designed to eliminate weekend waiting chaos in luxury salons. The system unites remote mobile check-ins and physical walk-ins into a unified First-In-First-Out (FIFO) queue while enforcing strict barber preferences, station concurrency guards, and real-time cross-device synchronization.
-
-### Visual Identity & Editorial Design System
 - **Palette**: Stark black (`#000000` / `#0A0A0A`), crisp pure white (`#FFFFFF`), and architectural gray surfaces (`#F5F5F5` canvas and `#E5E5E5` hairline dividers).
 - **Typography**: Editorial serif display headers (*Cormorant Garamond*) paired with modernist sans-serif body copy (*Inter*).
-- **Bilingual Localization**: 100% centralized English and Gujarati (ગુજરાતી) dictionary with persistent header toggle.
+- **Bilingual Localization**: Centralized English and Gujarati (ગુજરાતી) dictionary with persistent header toggle.
 - **Defensive Error Handling**: Integrated editorial React Error Boundary with one-click queue cache reset.
 
 ---
